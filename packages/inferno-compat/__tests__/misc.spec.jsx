@@ -165,6 +165,122 @@ describe('MISC', () => {
     });
   });
 
+  describe('memo()', () => {
+    it('should skip updates when props are shallowly equal', () => {
+      let renders = 0;
+
+      const Child = React.memo(function Child(props) {
+        renders++;
+
+        return <span>{props.value}</span>;
+      });
+
+      function Parent(props) {
+        return (
+          <div>
+            <Child value={props.value} />
+          </div>
+        );
+      }
+
+      render(<Parent value="stable" />, container);
+      render(<Parent value="stable" />, container);
+
+      expect(container.innerHTML).toBe('<div><span>stable</span></div>');
+      expect(renders).toBe(1);
+
+      render(<Parent value="changed" />, container);
+
+      expect(container.innerHTML).toBe('<div><span>changed</span></div>');
+      expect(renders).toBe(2);
+    });
+  });
+
+  describe('useSyncExternalStore()', () => {
+    it('should subscribe to external stores', () => {
+      let value = 1;
+      const listeners = [];
+      const subscribe = (listener) => {
+        listeners.push(listener);
+
+        return () => {
+          const index = listeners.indexOf(listener);
+
+          if (index > -1) {
+            listeners.splice(index, 1);
+          }
+        };
+      };
+      const getSnapshot = () => value;
+
+      function StoreReader() {
+        return <div>{React.useSyncExternalStore(subscribe, getSnapshot)}</div>;
+      }
+
+      render(<StoreReader />, container);
+      expect(container.innerHTML).toBe('<div>1</div>');
+
+      value = 2;
+      listeners.slice().forEach((listener) => listener());
+      React.rerender();
+
+      expect(container.innerHTML).toBe('<div>2</div>');
+    });
+  });
+
+  describe('useSyncExternalStoreWithSelector()', () => {
+    it('should subscribe to selected external store values', () => {
+      let snapshot = { first: 1, second: 1 };
+      const listeners = [];
+      const subscribe = (listener) => {
+        listeners.push(listener);
+
+        return () => {
+          const index = listeners.indexOf(listener);
+
+          if (index > -1) {
+            listeners.splice(index, 1);
+          }
+        };
+      };
+      const getSnapshot = () => snapshot;
+      let renders = 0;
+
+      function StoreReader() {
+        renders++;
+
+        return (
+          <div>
+            {React.useSyncExternalStoreWithSelector(
+              subscribe,
+              getSnapshot,
+              undefined,
+              (value) => value.first,
+            )}
+          </div>
+        );
+      }
+
+      render(<StoreReader />, container);
+      expect(container.innerHTML).toBe('<div>1</div>');
+      expect(renders).toBe(1);
+
+      snapshot = { first: 1, second: 2 };
+      listeners.slice().forEach((listener) => listener());
+      React.rerender();
+
+      expect(container.innerHTML).toBe('<div>1</div>');
+      expect(renders).toBe(1);
+
+      snapshot = { first: 2, second: 2 };
+      listeners.slice().forEach((listener) => listener());
+      React.rerender();
+
+      expect(container.innerHTML).toBe('<div>2</div>');
+      expect(renders).toBe(2);
+    });
+  });
+
   describe('cloneElement', () => {
     it('should clone elements', () => {
       const element = (

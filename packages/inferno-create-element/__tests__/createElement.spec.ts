@@ -129,17 +129,13 @@ describe('CreateElement (non-JSX)', () => {
     );
   });
 
-  it('Should handle node with hooks and key', (done) => {
+  it('Should handle node with key', () => {
     const node = () => createElement('div', { key: 'key2' }, 'Hooks');
     const app = createElement(node, {
       key: 'key1',
-      onComponentDidMount(domNode) {
-        expect(app.key).toBe('key1');
-        expect(domNode.tagName).toBe('DIV');
-        done();
-      },
     });
 
+    expect(app.key).toBe('key1');
     render(app, container);
     expect(container.innerHTML).toBe('<div>Hooks</div>');
   });
@@ -152,7 +148,7 @@ describe('CreateElement (non-JSX)', () => {
     expect(container.innerHTML).toBe('<div>Hooks</div>');
   });
 
-  it('Should handle node with refs', (done) => {
+  it('Should handle node with refs', () => {
     let myRef: any = 'myRef';
 
     const app = () => {
@@ -161,14 +157,10 @@ describe('CreateElement (non-JSX)', () => {
           ref: (c) => (myRef = c),
         });
 
-      return createElement(node, {
-        onComponentDidMount() {
-          expect(myRef.tagName).toBe('A');
-          done();
-        },
-      });
+      return createElement(node);
     };
     render(createElement(app, null), container);
+    expect(myRef.tagName).toBe('A');
   });
 
   describe('Fragments', () => {

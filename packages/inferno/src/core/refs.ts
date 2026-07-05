@@ -1,6 +1,6 @@
 import { isFunction, isNullOrUndef, warning } from 'inferno-shared';
 import { safeCall1 } from '../DOM/utils/common';
-import type { InfernoNode, Props, RefObject } from './types';
+import type { ForwardRef, InfernoNode, Ref, RefObject } from './types';
 
 export function createRef<T = Element>(): RefObject<T> {
   return {
@@ -9,12 +9,12 @@ export function createRef<T = Element>(): RefObject<T> {
 }
 
 // TODO: Make this return value typed
-export function forwardRef<T = any, P = Props<any>>(
+export function forwardRef<T = any, P = any>(
   render: (
     props: Readonly<{ children?: InfernoNode }> & Readonly<P>,
-    ref: RefObject<T>,
+    ref: Ref<T> | RefObject<T> | null,
   ) => InfernoNode,
-): any {
+): ForwardRef<P, T> {
   if (process.env.NODE_ENV !== 'production') {
     if (!isFunction(render)) {
       warning(
@@ -23,13 +23,13 @@ export function forwardRef<T = any, P = Props<any>>(
         }.`,
       );
 
-      return;
+      return undefined as any;
     }
   }
 
   return {
     render,
-  };
+  } as ForwardRef<P, T>;
 }
 
 export function unmountRef(ref): void {

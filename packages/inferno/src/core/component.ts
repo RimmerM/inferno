@@ -9,6 +9,7 @@ import {
   findDOMFromVNode,
   renderCheck,
 } from '../DOM/utils/common';
+import { rerenderFunctionalComponents } from './hooks';
 
 const COMPONENTS_QUEUE: Array<Component<any, any>> = [];
 
@@ -97,6 +98,8 @@ export function rerender(): void {
       }
     }
   }
+
+  rerenderFunctionalComponents();
 }
 
 function applyState<P, S>(component: Component<P, S>, force: boolean): void {

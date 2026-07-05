@@ -1,330 +1,207 @@
-import { Component, render } from 'inferno';
+import {
+  memo,
+  render,
+  rerender,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  useSyncExternalStoreWithSelector,
+} from 'inferno';
 import { createElement } from 'inferno-create-element';
 
-describe('lifecycle hooks', () => {
-  describe('Stateless component hooks', () => {
-    let template;
-    let container;
-    let animationTemplate;
+describe('functional hooks with createElement', () => {
+  let container;
 
-    function StatelessComponent() {
-      const divTemplate = () => {
-        return createElement('div', null, 'Hello world!');
-      };
-      return divTemplate();
-    }
-
-    afterEach(function () {
-      render(null, container);
-    });
-
-    beforeEach(function () {
-      container = document.createElement('div');
-
-      template =
-        (
-          onComponentWillMount,
-          onComponentDidMount,
-          onComponentWillUnmount,
-          onComponentWillUpdate,
-          onComponentDidUpdate,
-          onComponentShouldUpdate,
-          StatelessComponent,
-        ) =>
-        (props) => {
-          return createElement(
-            StatelessComponent,
-            {
-              onComponentWillMount,
-              onComponentDidMount,
-              onComponentWillUnmount,
-              onComponentWillUpdate,
-              onComponentDidUpdate,
-              onComponentShouldUpdate,
-              ...props,
-            },
-            null,
-          );
-        };
-
-      animationTemplate =
-        (onComponentDidAppear, onComponentWillDisappear, StatelessComponent) =>
-        (props) => {
-          return createElement(
-            StatelessComponent,
-            {
-              onComponentDidAppear,
-              onComponentWillDisappear,
-              ...props,
-            },
-            null,
-          );
-        };
-    });
-
-    it('"onComponentWillMount" hook should fire, args props', () => {
-      const spyObj = {
-        fn: () => {},
-      };
-      const spy = spyOn(spyObj, 'fn');
-      const node = template(
-        spyObj.fn,
-        null,
-        null,
-        null,
-        null,
-        null,
-        StatelessComponent,
-      )({ a: 1 });
-      render(node, container);
-
-      expect(spy.calls.count()).toBe(1);
-      expect(spy.calls.argsFor(0).length).toBe(1);
-      expect(spy.calls.argsFor(0)[0]).toEqual({ a: 1, children: null });
-    });
-
-    it('"onComponentDidMount" hook should fire, args DOM props', () => {
-      const spyObj = {
-        fn: () => {},
-      };
-      const spy = spyOn(spyObj, 'fn');
-      const node = template(
-        null,
-        spyObj.fn,
-        null,
-        null,
-        null,
-        null,
-        StatelessComponent,
-      )({ a: 1 });
-      render(node, container);
-
-      expect(spy.calls.count()).toBe(1);
-      expect(spy.calls.argsFor(0).length).toBe(2);
-      expect(spy.calls.argsFor(0)[0]).toBe(container.firstChild);
-      expect(spy.calls.argsFor(0)[1]).toEqual({ a: 1, children: null });
-    });
-
-    it('"onComponentWillUnmount" hook should fire, args DOM props', () => {
-      const spyObj = {
-        fn: () => {},
-      };
-      const spy = spyOn(spyObj, 'fn');
-      const node = template(
-        null,
-        null,
-        spyObj.fn,
-        null,
-        null,
-        null,
-        StatelessComponent,
-      )({ a: 1 });
-      render(node, container);
-      expect(spy.calls.count()).toBe(0);
-      // do unmount
-      render(null, container);
-
-      expect(spy.calls.count()).toBe(1);
-      expect(spy.calls.argsFor(0).length).toBe(2);
-      expect(spy.calls.argsFor(0)[0].outerHTML).toBe('<div>Hello world!</div>');
-      expect(spy.calls.argsFor(0)[1]).toEqual({ a: 1, children: null });
-    });
-
-    it('"onComponentWillUpdate" hook should fire, args props nextProps', () => {
-      const spyObj = {
-        fn: () => {},
-      };
-      const spy = spyOn(spyObj, 'fn');
-      const t = template(
-        null,
-        null,
-        null,
-        spyObj.fn,
-        null,
-        null,
-        StatelessComponent,
-      );
-
-      const node1 = t({ a: 1 });
-      render(node1, container);
-      expect(spy.calls.count()).toBe(0);
-
-      const node2 = t({ a: 2 });
-      render(node2, container);
-      expect(spy.calls.count()).toBe(1);
-      expect(spy.calls.argsFor(0).length).toBe(2);
-      expect(spy.calls.argsFor(0)[0]).toEqual({ a: 1, children: null });
-      expect(spy.calls.argsFor(0)[1]).toEqual({ a: 2, children: null });
-    });
-
-    it('"onComponentDidUpdate" hook should fire, args prevProps props', () => {
-      const spyObj = {
-        fn: () => {},
-      };
-      const spy = spyOn(spyObj, 'fn');
-      const t = template(
-        null,
-        null,
-        null,
-        null,
-        spyObj.fn,
-        null,
-        StatelessComponent,
-      );
-
-      const node1 = t({ a: 1 });
-      render(node1, container);
-      expect(spy.calls.count()).toBe(0); // Update 1
-
-      const node2 = t({ a: 2 });
-      render(node2, container);
-      expect(spy.calls.count()).toBe(1); // Update 2
-      expect(spy.calls.argsFor(0).length).toBe(2);
-      expect(spy.calls.argsFor(0)[0]).toEqual({ a: 1, children: null });
-      expect(spy.calls.argsFor(0)[1]).toEqual({ a: 2, children: null });
-    });
-
-    it('"onComponentShouldUpdate" hook should fire, should call render when return true, args props nextProps', () => {
-      let onComponentShouldUpdateCount = 0;
-      let renderCount = 0;
-      const spyObj = {
-        fn: () => {
-          onComponentShouldUpdateCount++;
-          return true;
-        },
-      };
-      const spy = spyOn(spyObj, 'fn').and.callThrough();
-      const StatelessComponent = () => {
-        renderCount++;
-        return null;
-      };
-      const t = template(
-        null,
-        null,
-        null,
-        null,
-        null,
-        spyObj.fn,
-        StatelessComponent,
-      );
-
-      const node1 = t({ a: 1 });
-      render(node1, container);
-      expect(onComponentShouldUpdateCount).toBe(0); // Update 1
-      expect(renderCount).toBe(1); // Rendered 1 time
-
-      const node2 = t({ a: 2 });
-      render(node2, container);
-      expect(onComponentShouldUpdateCount).toBe(1); // Update 2
-      expect(renderCount).toBe(2); // Rendered 2 time
-      expect(spy.calls.argsFor(0).length).toBe(2);
-      expect(spy.calls.argsFor(0)[0]).toEqual({ a: 1, children: null });
-      expect(spy.calls.argsFor(0)[1]).toEqual({ a: 2, children: null });
-    });
-
-    it('"onComponentShouldUpdate" hook should fire, should not call render when return false, args props nextProps', () => {
-      let onComponentShouldUpdateCount = 0;
-      let renderCount = 0;
-      const spyObj = {
-        fn: () => {
-          onComponentShouldUpdateCount++;
-          return false;
-        },
-      };
-      const spy = spyOn(spyObj, 'fn').and.callThrough();
-      const StatelessComponent = () => {
-        renderCount++;
-        return null;
-      };
-      const t = template(
-        null,
-        null,
-        null,
-        null,
-        null,
-        spyObj.fn,
-        StatelessComponent,
-      );
-
-      const node1 = t({ a: 1 });
-      render(node1, container);
-      expect(onComponentShouldUpdateCount).toBe(0); // Update 1
-      expect(renderCount).toBe(1); // Rendered 1 time
-
-      const node2 = t({ a: 2 });
-      render(node2, container);
-      expect(onComponentShouldUpdateCount).toBe(1); // Update 2
-      expect(renderCount).toBe(1); // Rendered 1 time
-      expect(spy.calls.argsFor(0).length).toBe(2);
-      expect(spy.calls.argsFor(0)[0]).toEqual({ a: 1, children: null });
-      expect(spy.calls.argsFor(0)[1]).toEqual({ a: 2, children: null });
-    });
-
-    it('"onComponentDidAppear" hook should fire, args dom props', () => {
-      const spyObj = {
-        fn: () => {},
-      };
-
-      const spy = spyOn(spyObj, 'fn');
-      const t = animationTemplate(spyObj.fn, null, StatelessComponent);
-
-      const node1 = t({ a: 1 });
-      render(node1, container);
-      expect(spy.calls.count()).toBe(1); // Update 1
-      expect(spy.calls.argsFor(0).length).toBe(2);
-      expect(spy.calls.argsFor(0)[0] instanceof HTMLDivElement).toEqual(true);
-      expect(typeof spy.calls.argsFor(0)[1] === 'object').toEqual(true);
-
-      const node2 = t({ a: 2 });
-      render(node2, container);
-      expect(spy.calls.count()).toBe(1); // Update 2 (shouldn't trigger animation)
-    });
-
-    it('"onComponentWillDisappear" hook should fire, args dom props', () => {
-      const spyObj = {
-        fn: () => {},
-      };
-
-      const spy = spyOn(spyObj, 'fn');
-      const t = animationTemplate(null, spyObj.fn, StatelessComponent);
-
-      const node1 = t({ a: 1 });
-      render(node1, container);
-      render(null, container);
-
-      expect(spy.calls.count()).toBe(1); // animation triggers on remove
-      expect(spy.calls.argsFor(0).length).toBe(3);
-      expect(spy.calls.argsFor(0)[0] instanceof HTMLDivElement).toEqual(true);
-      expect(typeof spy.calls.argsFor(0)[1] === 'object').toEqual(true);
-      expect(typeof spy.calls.argsFor(0)[2] === 'function').toEqual(true);
-    });
+  beforeEach(function () {
+    container = document.createElement('div');
   });
 
-  describe('Class Component hooks', function () {
-    it('Should trigger ref callback when component is mounting and unmounting', () => {
-      const container = document.createElement('div');
-      class FooBar extends Component {
-        render() {
-          return createElement('div');
-        }
-      }
-      const spyObj = {
-        fn: () => {},
-      };
-      const spy = spyOn(spyObj, 'fn');
-      const node = createElement(FooBar, { ref: spyObj.fn });
+  afterEach(function () {
+    rerender();
+    render(null, container);
+  });
 
-      render(node, container);
+  it('should support useState in functional components', () => {
+    let setValue;
 
-      expect(spy.calls.count()).toBe(1);
-      expect(spy.calls.argsFor(0).length).toBe(1);
-      expect(spy.calls.argsFor(0)[0]).not.toEqual(null);
+    function Counter() {
+      const [value, updateValue] = useState(1);
+      setValue = updateValue;
 
-      render(null, container);
+      return createElement('div', null, value);
+    }
 
-      expect(spy.calls.count()).toBe(2);
-      expect(spy.calls.argsFor(1).length).toBe(1);
-      expect(spy.calls.argsFor(1)[0]).toEqual(null);
+    render(createElement(Counter), container);
+    expect(container.innerHTML).toBe('<div>1</div>');
+
+    setValue(2);
+    rerender();
+
+    expect(container.innerHTML).toBe('<div>2</div>');
+  });
+
+  it('should support useEffect cleanup in functional components', (done) => {
+    const calls = [];
+
+    function EffectComponent(props) {
+      useEffect(() => {
+        calls.push('effect:' + props.value);
+
+        return () => {
+          calls.push('cleanup:' + props.value);
+        };
+      }, [props.value]);
+
+      return createElement('div', null, props.value);
+    }
+
+    render(createElement(EffectComponent, { value: 1 }), container);
+
+    setTimeout(() => {
+      expect(calls).toEqual(['effect:1']);
+
+      render(createElement(EffectComponent, { value: 2 }), container);
+
+      setTimeout(() => {
+        expect(calls).toEqual(['effect:1', 'cleanup:1', 'effect:2']);
+
+        render(null, container);
+        expect(calls).toEqual([
+          'effect:1',
+          'cleanup:1',
+          'effect:2',
+          'cleanup:2',
+        ]);
+        done();
+      }, 0);
+    }, 0);
+  });
+
+  it('should support memoized functional components', () => {
+    let renders = 0;
+
+    const Child = memo(function Child(props) {
+      renders++;
+
+      return createElement('span', null, props.value);
     });
+
+    function Parent(props) {
+      return createElement('div', null, createElement(Child, props));
+    }
+
+    render(createElement(Parent, { value: 'stable' }), container);
+    render(createElement(Parent, { value: 'stable' }), container);
+
+    expect(container.innerHTML).toBe('<div><span>stable</span></div>');
+    expect(renders).toBe(1);
+
+    render(createElement(Parent, { value: 'changed' }), container);
+
+    expect(container.innerHTML).toBe('<div><span>changed</span></div>');
+    expect(renders).toBe(2);
+  });
+
+  it('should support useSyncExternalStore in functional components', () => {
+    let value = 1;
+    const listeners = [];
+    const subscribe = (listener) => {
+      listeners.push(listener);
+
+      return () => {
+        const index = listeners.indexOf(listener);
+
+        if (index > -1) {
+          listeners.splice(index, 1);
+        }
+      };
+    };
+    const getSnapshot = () => value;
+
+    function StoreReader() {
+      return createElement(
+        'div',
+        null,
+        useSyncExternalStore(subscribe, getSnapshot),
+      );
+    }
+
+    render(createElement(StoreReader), container);
+    expect(container.innerHTML).toBe('<div>1</div>');
+
+    value = 2;
+    listeners.slice().forEach((listener) => listener());
+    rerender();
+
+    expect(container.innerHTML).toBe('<div>2</div>');
+  });
+
+  it('should support useSyncExternalStoreWithSelector in functional components', () => {
+    let snapshot = { first: 1, second: 1 };
+    const listeners = [];
+    const subscribe = (listener) => {
+      listeners.push(listener);
+
+      return () => {
+        const index = listeners.indexOf(listener);
+
+        if (index > -1) {
+          listeners.splice(index, 1);
+        }
+      };
+    };
+    const getSnapshot = () => snapshot;
+    let renders = 0;
+
+    function StoreReader() {
+      renders++;
+
+      return createElement(
+        'div',
+        null,
+        useSyncExternalStoreWithSelector(
+          subscribe,
+          getSnapshot,
+          undefined,
+          (value) => value.first,
+        ),
+      );
+    }
+
+    render(createElement(StoreReader), container);
+    expect(container.innerHTML).toBe('<div>1</div>');
+    expect(renders).toBe(1);
+
+    snapshot = { first: 1, second: 2 };
+    listeners.slice().forEach((listener) => listener());
+    rerender();
+
+    expect(container.innerHTML).toBe('<div>1</div>');
+    expect(renders).toBe(1);
+
+    snapshot = { first: 2, second: 2 };
+    listeners.slice().forEach((listener) => listener());
+    rerender();
+
+    expect(container.innerHTML).toBe('<div>2</div>');
+    expect(renders).toBe(2);
+  });
+
+  it('should not treat lifecycle-looking props as functional lifecycle hooks', () => {
+    const spy = jasmine.createSpy();
+
+    function ComponentWithProp(props) {
+      return createElement('div', null, typeof props.onComponentDidMount);
+    }
+
+    render(
+      createElement(ComponentWithProp, {
+        onComponentDidMount: spy,
+      }),
+      container,
+    );
+
+    expect(container.innerHTML).toBe('<div>function</div>');
+    expect(spy).not.toHaveBeenCalled();
   });
 });

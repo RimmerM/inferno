@@ -299,17 +299,47 @@ describe('All single patch variations', () => {
     });
   });
 
-  describe('defaultHooks', () => {
-    it('Should never update if defaultProps refs SCU returns false', () => {
+  describe('functional components without defaultHooks', () => {
+    it('Should update functional components on parent renders', () => {
       let counter = 0;
 
       const Static = function () {
         return <div>{counter}</div>;
       };
 
-      Static.defaultHooks = {
+      function doRender() {
+        render(
+          <div>
+            {counter}
+            <Static />
+          </div>,
+          container,
+        );
+      }
+
+      doRender();
+      expect(container.innerHTML).toEqual('<div>0<div>0</div></div>');
+      counter++;
+      doRender();
+      expect(container.innerHTML).toEqual('<div>1<div>1</div></div>');
+      counter++;
+      doRender();
+      expect(container.innerHTML).toEqual('<div>2<div>2</div></div>');
+    });
+
+    it('Should ignore stale defaultHooks properties', () => {
+      let counter = 0;
+
+      const Static = function () {
+        return <div>{counter}</div>;
+      };
+
+      (Static as any).defaultHooks = {
         onComponentShouldUpdate() {
           return false;
+        },
+        onComponentWillMount() {
+          throw new Error('defaultHooks should not be called');
         },
       };
 
@@ -327,104 +357,7 @@ describe('All single patch variations', () => {
       expect(container.innerHTML).toEqual('<div>0<div>0</div></div>');
       counter++;
       doRender();
-      expect(container.innerHTML).toEqual('<div>1<div>0</div></div>');
-      counter++;
-      doRender();
-      expect(container.innerHTML).toEqual('<div>2<div>0</div></div>');
-    });
-
-    it('Should prefer external hook if given', () => {
-      let counter = 0;
-      let mountCounter = 0;
-
-      interface scuTestType {
-        onComponentShouldUpdate: () => boolean;
-      }
-
-      const Static = function (_: scuTestType) {
-        return <div>{counter}</div>;
-      };
-
-      Static.defaultHooks = {
-        onComponentShouldUpdate() {
-          return false;
-        },
-        onComponentWillMount() {
-          mountCounter++;
-        },
-      };
-
-      function doRender() {
-        render(
-          <div>
-            {counter}
-            <Static onComponentShouldUpdate={() => true} />
-          </div>,
-          container,
-        );
-      }
-
-      doRender();
-      expect(container.innerHTML).toEqual('<div>0<div>0</div></div>');
-      counter++;
-      expect(mountCounter).toBe(1);
-      doRender();
       expect(container.innerHTML).toEqual('<div>1<div>1</div></div>');
-      counter++;
-      expect(mountCounter).toBe(1);
-      doRender();
-      expect(container.innerHTML).toEqual('<div>2<div>2</div></div>');
-      expect(mountCounter).toBe(1);
-    });
-
-    it('Should be possible to define default hooks and use spread operator', () => {
-      let counter = 0;
-      let mountCounter = 0;
-
-      const Static = function () {
-        return <div>{counter}</div>;
-      };
-
-      Static.defaultHooks = {
-        onComponentShouldUpdate() {
-          return false;
-        },
-        onComponentWillMount() {
-          mountCounter++;
-        },
-      };
-
-      const props = {
-        ref: {
-          onComponentShouldUpdate: () => true,
-        },
-      };
-
-      // TODO: Supporting types for "ref: {}" function component hooks probably needs changes to "JSX root types" where are those?
-
-      function doRender() {
-        render(
-          <div>
-            {counter}
-            {/*
- // @ts-expect-error */}
-            <Static {...props} />
-          </div>,
-          container,
-        );
-      }
-
-      doRender();
-      expect(container.innerHTML).toEqual('<div>0<div>0</div></div>');
-      counter++;
-      expect(mountCounter).toBe(1);
-      doRender();
-      expect(container.innerHTML).toEqual('<div>1<div>1</div></div>');
-      counter++;
-      expect(mountCounter).toBe(1);
-      doRender();
-      expect(container.innerHTML).toEqual('<div>2<div>2</div></div>');
-      expect(mountCounter).toBe(1);
     });
   });
 

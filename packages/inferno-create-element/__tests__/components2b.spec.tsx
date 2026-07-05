@@ -1445,7 +1445,7 @@ describe('Components 2 (TSX)', () => {
     }
 
     function B() {
-      return <F onComponentShouldUpdate={() => false} />;
+      return <F />;
     }
 
     interface TestState {
@@ -1463,7 +1463,7 @@ describe('Components 2 (TSX)', () => {
 
       render() {
         const children = [
-          <B key="b" onComponentShouldUpdate={() => false} />,
+          <B key="b" />,
           <div key="a">ROW</div>,
         ];
         if (this.state.reverse) {

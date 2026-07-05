@@ -3,6 +3,7 @@ import {
   createComponentVNode,
   type InfernoNode,
   render,
+  useLayoutEffect,
   type VNode,
 } from 'inferno';
 import { Reaction } from 'mobx';
@@ -13,10 +14,6 @@ type Render = (
   properties?: any,
   context?: Record<string, unknown>,
 ) => InfernoNode;
-
-function callDispose({ dispose }: { readonly dispose: () => void }): void {
-  dispose();
-}
 
 interface InnerProperties {
   readonly context: unknown;
@@ -30,20 +27,14 @@ function innerVNode<T>(
   type: (p: InnerProperties) => T,
   properties: InnerProperties,
 ): VNode {
-  const ref = {
-    onComponentDidUpdate: callDispose,
-    onComponentWillUnmount: properties.dispose,
-  };
   if (process.env.NODE_ENV !== 'production') {
     Object.freeze(properties);
-    Object.freeze(ref);
   }
   return createComponentVNode(
     VNodeFlags.ComponentFunction,
     type,
     properties,
     undefined,
-    ref,
   );
 }
 
@@ -56,30 +47,6 @@ function makeProxy(target: VNode): { $V: InfernoNode } {
       target.children = value;
     },
   };
-}
-
-type UpdateHook = (this: RefType, prev: unknown, next: unknown) => void;
-
-interface RefType {
-  readonly onComponentDidUpdate?: UpdateHook;
-  readonly onComponentWillUpdate?: UpdateHook;
-}
-
-function getUpdateHooks(
-  ref: RefType | null,
-  props: unknown,
-): Array<null | (() => void)> {
-  let onComponentDidUpdate = null;
-  let onComponentWillUpdate = null;
-  if (ref) {
-    if (ref.onComponentDidUpdate) {
-      onComponentDidUpdate = ref.onComponentDidUpdate.bind(ref, props, props);
-    }
-    if (ref.onComponentWillUpdate) {
-      onComponentWillUpdate = ref.onComponentWillUpdate.bind(ref, props, props);
-    }
-  }
-  return [onComponentDidUpdate, onComponentWillUpdate];
 }
 
 export function observerWrap<T extends Render>(base: T): typeof base {
@@ -101,6 +68,7 @@ export function observerWrap<T extends Render>(base: T): typeof base {
   }
   function tracked({
     context,
+    dispose,
     props,
     self,
     track,
@@ -117,26 +85,20 @@ export function observerWrap<T extends Render>(base: T): typeof base {
     if (caught) {
       throw caught;
     }
+    useLayoutEffect(() => dispose, [dispose]);
     return result;
   }
   function wrapper(this: VNode, props, context): VNode {
-    const [onComponentDidUpdate, onComponentWillUpdate] = getUpdateHooks(
-      this.ref,
-      props,
-    );
     // eslint-disable-next-line prefer-const
     let proxy;
     const reaction = new Reaction(base.name, () => {
       let next;
-      if (onComponentWillUpdate) {
-        onComponentWillUpdate();
-      }
       reaction.track(() => {
         next = normalizeRoot(base.call(this, props, context));
       });
       if (next) {
         // indirectly call patch as inferno does not export patch
-        render(next, proxy, onComponentDidUpdate, context);
+        render(next, proxy, null, context);
       }
     });
     const inner = innerVNode(tracked, {
@@ -150,7 +112,6 @@ export function observerWrap<T extends Render>(base: T): typeof base {
     return inner;
   }
   wrapper.defaultProps = (base as any).defaultProps;
-  wrapper.defaultHooks = (base as any).defaultHooks;
   if (process.env.NODE_ENV !== 'production') {
     wrapper.isMobXInfernoObserver = true;
   }

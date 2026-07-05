@@ -2,6 +2,7 @@ import {
   Component,
   createRef,
   forwardRef,
+  memo,
   type RefObject,
   render,
 } from 'inferno';
@@ -141,6 +142,38 @@ describe('Forward Ref', () => {
     );
   });
 
+  it('Should support memoized forwardRef components', () => {
+    let renders = 0;
+    const firstRef = createRef<HTMLButtonElement>();
+    const secondRef = createRef<HTMLButtonElement>();
+    const FancyButton = memo(
+      forwardRef<HTMLButtonElement, { label: string }>((props, ref) => {
+        renders++;
+
+        return (
+          <button ref={ref} className="FancyButton">
+            {props.label}
+          </button>
+        );
+      }),
+    );
+
+    render(<FancyButton ref={firstRef} label="Click me!" />, container);
+    render(<FancyButton ref={firstRef} label="Click me!" />, container);
+
+    expect(container.innerHTML).toBe(
+      '<button class="FancyButton">Click me!</button>',
+    );
+    expect(firstRef.current).toBe(container.querySelector('button'));
+    expect(renders).toBe(1);
+
+    render(<FancyButton ref={secondRef} label="Click me!" />, container);
+
+    expect(firstRef.current).toBe(null);
+    expect(secondRef.current).toBe(container.querySelector('button'));
+    expect(renders).toBe(2);
+  });
+
   describe('Validations', () => {
     it('Should log error if input is: Component, vNode or invalid value', () => {
       const consoleSpy = spyOn(console, 'error');
@@ -207,7 +240,7 @@ describe('Forward Ref', () => {
   });
 
   describe('Inferno specifics', () => {
-    it('Should support defaultProps and defaultHooks', () => {
+    it('Should support defaultProps', () => {
       function CoolStuff(props, ref) {
         return (
           <div className={props.className}>
@@ -220,11 +253,6 @@ describe('Forward Ref', () => {
       CoolStuff.defaultProps = {
         foo: 'bar',
       };
-      CoolStuff.defaultHooks = {
-        onComponentWillMount() {},
-      };
-
-      const spy = spyOn(CoolStuff.defaultHooks, 'onComponentWillMount');
 
       const ForwardCom = forwardRef(CoolStuff);
 
@@ -252,7 +280,6 @@ describe('Forward Ref', () => {
       expect(container.innerHTML).toBe(
         '<div class="okay"><span><a>1</a></span>bar</div>',
       );
-      expect(spy.calls.count()).toBe(1);
 
       render(null, container);
 

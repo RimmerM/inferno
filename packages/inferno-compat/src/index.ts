@@ -24,10 +24,22 @@ import {
   getFlagsForElementVnode,
   type InfernoNode,
   linkEvent,
+  memo,
   normalizeProps,
   options,
   rerender,
   type VNode,
+  useAnimation,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  useSyncExternalStoreWithSelector,
 } from 'inferno';
 import { hydrate } from 'inferno-hydrate';
 import { cloneVNode } from 'inferno-clone-vnode';
@@ -49,7 +61,7 @@ import { InfernoCompatPropertyMap } from './InfernoCompatPropertyMap';
 import { findDOMNode } from 'inferno-extras';
 import { getNumberStyleValue, hyphenCase } from './reactstyles';
 
-export type { ComponentType, Inferno, Refs, VNode } from 'inferno';
+export type { ComponentType, Inferno, Ref as Refs, VNode } from 'inferno';
 
 declare global {
   interface Event {
@@ -421,12 +433,24 @@ if (
     hydrate,
     isValidElement,
     linkEvent,
+    memo,
     normalizeProps,
     options,
     render,
     rerender,
     unmountComponentAtNode,
     unstable_renderSubtreeIntoContainer,
+    useAnimation,
+    useCallback,
+    useEffect,
+    useImperativeHandle,
+    useLayoutEffect,
+    useMemo,
+    useReducer,
+    useRef,
+    useState,
+    useSyncExternalStore,
+    useSyncExternalStoreWithSelector,
     version,
   };
 
@@ -471,12 +495,24 @@ export {
   hydrate,
   isValidElement,
   linkEvent,
+  memo,
   normalizeProps,
   options,
   render,
   rerender,
   unmountComponentAtNode,
   unstable_renderSubtreeIntoContainer,
+  useAnimation,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  useSyncExternalStoreWithSelector,
   version,
 };
 
@@ -517,11 +553,23 @@ export default {
   hydrate,
   isValidElement,
   linkEvent,
+  memo,
   normalizeProps,
   options,
   render,
   rerender,
   unmountComponentAtNode,
   unstable_renderSubtreeIntoContainer,
+  useAnimation,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  useSyncExternalStoreWithSelector,
   version,
 };

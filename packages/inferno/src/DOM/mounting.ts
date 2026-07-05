@@ -19,7 +19,6 @@ import {
   EMPTY_OBJ,
   findDOMFromVNode,
   insertOrAppend,
-  safeCall1,
   setTextContent,
 } from './utils/common';
 import { mountProps } from './props';
@@ -29,6 +28,12 @@ import {
 } from './utils/componentUtil';
 import { validateKeys } from '../core/validate';
 import { mountRef } from '../core/refs';
+import {
+  commitFunctionalComponentEffects,
+  createFunctionalComponentState,
+  renderFunctionalComponentWithHooks,
+  setFunctionalComponentState,
+} from '../core/hooks';
 
 export function mount(
   vNode: VNode,
@@ -329,15 +334,28 @@ export function mountFunctionalComponent(
   lifecycle: Array<() => void>,
   animations: AnimationQueues,
 ): void {
-  const ref = vNode.ref;
+  const component = setFunctionalComponentState(
+    vNode,
+    createFunctionalComponentState(vNode, context, isSVG),
+  );
+  const input = normalizeRoot(
+    renderFunctionalComponentWithHooks(component, () =>
+      renderFunctionalComponent(vNode, context),
+    ),
+  );
+
+  component.input = input;
+  vNode.children = input;
+
   // If we have a componentDidAppear on this component, we shouldn't allow children to animate so we're passing an dummy animations queue
   let childAnimations = animations;
-  if (!isNullOrUndef(ref) && isFunction(ref.onComponentDidAppear)) {
+
+  if (!isNullOrUndef(component.animation?.onAppear)) {
     childAnimations = new AnimationQueues();
   }
 
   mount(
-    (vNode.children = normalizeRoot(renderFunctionalComponent(vNode, context))),
+    input,
     parentDOM,
     context,
     isSVG,
@@ -366,12 +384,11 @@ function addAppearAnimationHookClass(
 
 function addAppearAnimationHookFunctional(
   animations: AnimationQueues,
-  ref,
+  component,
   dom: Element,
-  props,
 ): void {
   animations.componentDidAppear.push(() => {
-    ref.onComponentDidAppear(dom, props);
+    component.animation.onAppear(dom);
   });
 }
 
@@ -407,34 +424,24 @@ export function mountClassComponentCallbacks(
   }
 }
 
-function createOnMountCallback(ref, vNode) {
-  return () => {
-    ref.onComponentDidMount(
-      findDOMFromVNode(vNode, true),
-      vNode.props || EMPTY_OBJ,
-    );
-  };
-}
-
 export function mountFunctionalComponentCallbacks(
   vNode: VNode,
   lifecycle: Array<() => void>,
   animations: AnimationQueues,
 ): void {
-  const ref = vNode.ref;
+  const component = vNode.$H;
 
-  if (!isNullOrUndef(ref)) {
-    safeCall1(ref.onComponentWillMount, vNode.props || EMPTY_OBJ);
-    if (isFunction(ref.onComponentDidMount)) {
-      lifecycle.push(createOnMountCallback(ref, vNode));
-    }
-    if (isFunction(ref.onComponentDidAppear)) {
-      addAppearAnimationHookFunctional(
-        animations,
-        ref,
-        findDOMFromVNode(vNode, true) as Element,
-        vNode.props,
-      );
-    }
+  if (isNullOrUndef(component)) {
+    return;
+  }
+
+  commitFunctionalComponentEffects(component, lifecycle);
+
+  if (!isNullOrUndef(component.animation?.onAppear)) {
+    addAppearAnimationHookFunctional(
+      animations,
+      component,
+      findDOMFromVNode(vNode, true) as Element,
+    );
   }
 }

@@ -32,6 +32,23 @@ import {
   mountFunctionalComponentCallbacks,
 } from './DOM/mounting';
 import { createRef, forwardRef, mountRef } from './core/refs';
+import { memo } from './core/memo';
+import {
+  createFunctionalComponentState,
+  useAnimation,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  useSyncExternalStoreWithSelector,
+  renderFunctionalComponentWithHooks,
+  setFunctionalComponentState,
+} from './core/hooks';
 export * from './core/types';
 
 if (process.env.NODE_ENV !== 'production') {
@@ -77,10 +94,22 @@ export {
   findDOMFromVNode,
   getFlagsForElementVnode,
   linkEvent,
+  memo,
   normalizeProps,
   options,
   render,
   rerender,
+  useAnimation,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  useSyncExternalStoreWithSelector,
   version,
   // Internal methods, used by hydration
   createClassComponentInstance as _CI,
@@ -93,4 +122,7 @@ export {
   mountProps as _MP,
   renderInternal,
   renderFunctionalComponent as _RFC,
+  createFunctionalComponentState as _CFS,
+  renderFunctionalComponentWithHooks as _RFCH,
+  setFunctionalComponentState as _SFCS,
 };

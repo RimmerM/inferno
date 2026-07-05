@@ -72,20 +72,19 @@ describe('HyperScript (non-JSX)', () => {
     expect(container.innerHTML).toBe('<div>Hello world!</div>');
   });
 
-  it('Should handle a hooks example #1', () => {
+  it('Should handle a ref example #1', () => {
+    let div;
     const Component = ({ children }) => {
-      return h('div', children);
+      return h('div', { ref: (dom) => (div = dom) }, children);
     };
     const ComponentHooks = () =>
       h(Component, {
-        hooks: {
-          onComponentDidUnmount() {},
-        },
         children: 'Hello world!',
       });
 
     render(h(ComponentHooks), container);
     expect(container.innerHTML).toBe('<div>Hello world!</div>');
+    expect(div).toBe(container.firstChild);
   });
 
   it('Should handle children as third argument', () => {
@@ -144,20 +143,12 @@ describe('HyperScript (non-JSX)', () => {
     expect(container.innerHTML).toBe('<div id="myId"></div>');
   });
 
-  it('Should support lifecycle methods on functional components willMount', () => {
+  it('Should pass lifecycle-looking props to functional components', () => {
     const callbackSpy = jasmine.createSpy('spy');
-    const ComponentHooks = () => h('#myId');
+    const ComponentHooks = (props) => h('#myId', props);
     render(h(ComponentHooks, { onComponentWillMount: callbackSpy }), container);
     expect(container.innerHTML).toBe('<div id="myId"></div>');
-    expect(callbackSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it('Should support lifecycle methods on functional components didMount', () => {
-    const callbackSpy = jasmine.createSpy('spy');
-    const ComponentHooks = () => h('#myId');
-    render(h(ComponentHooks, { onComponentDidMount: callbackSpy }), container);
-    expect(container.innerHTML).toBe('<div id="myId"></div>');
-    expect(callbackSpy).toHaveBeenCalledTimes(1);
+    expect(callbackSpy).not.toHaveBeenCalled();
   });
 
   it('Should pass classNames through', () => {
@@ -323,17 +314,13 @@ describe('HyperScript (non-JSX)', () => {
       );
     });
 
-    it('Should handle node with hooks and key', (done) => {
+    it('Should handle node with key', () => {
       const node = () => h('div', { key: 'key2' }, 'Hooks');
       const app = h(node, {
         key: 'key1',
-        onComponentDidMount(domNode) {
-          expect(app.key).toBe('key1');
-          expect(domNode.tagName).toBe('DIV');
-          done();
-        },
       });
 
+      expect(app.key).toBe('key1');
       render(app, container);
       expect(container.innerHTML).toBe('<div>Hooks</div>');
     });
@@ -346,7 +333,7 @@ describe('HyperScript (non-JSX)', () => {
       expect(container.innerHTML).toBe('<div>Hooks</div>');
     });
 
-    it('Should handle node with refs', (done) => {
+    it('Should handle node with refs', () => {
       let myRef;
 
       const app = () => {
@@ -354,14 +341,10 @@ describe('HyperScript (non-JSX)', () => {
           h('a', {
             ref: (c) => (myRef = c),
           });
-        return h(node, {
-          onComponentDidMount() {
-            expect(myRef.tagName).toBe('A');
-            done();
-          },
-        });
+        return h(node);
       };
       render(h(app, null), container);
+      expect(myRef.tagName).toBe('A');
     });
 
     let shouldUpdate = false;

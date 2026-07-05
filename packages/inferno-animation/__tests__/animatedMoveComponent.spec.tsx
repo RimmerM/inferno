@@ -1,4 +1,4 @@
-import { render, type InfernoNode } from 'inferno';
+import { render, type InfernoNode, useAnimation } from 'inferno';
 import { renderToString } from 'inferno-server';
 import { AnimatedMoveComponent, componentWillMove } from 'inferno-animation';
 
@@ -160,6 +160,14 @@ describe('inferno-animation AnimatedMoveComponent', () => {
 describe('inferno-animation animated functional component', () => {
   let container;
 
+  function useAnimatedProps(props): void {
+    useAnimation({
+      onMove(parentVNode, parentDOM, dom) {
+        componentWillMove(parentVNode, parentDOM, dom as HTMLElement, props);
+      },
+    });
+  }
+
   beforeEach(function () {
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -189,8 +197,10 @@ describe('inferno-animation animated functional component', () => {
   });
 
   it('should render class component extending AnimatedMoveComponent into DOM', () => {
-    const MyComponent = ({ children }): InfernoNode => {
-      return <div>{children}</div>;
+    const MyComponent = (props): InfernoNode => {
+      useAnimatedProps(props);
+
+      return <div>{props.children}</div>;
     };
 
     render(
@@ -201,8 +211,10 @@ describe('inferno-animation animated functional component', () => {
   });
 
   it('should remove class component extending AnimatedMoveComponent from DOM', (done) => {
-    const My = ({ children }): InfernoNode => {
-      return <div>{children}</div>;
+    const My = (props): InfernoNode => {
+      useAnimatedProps(props);
+
+      return <div>{props.children}</div>;
     };
 
     const anim = {
@@ -266,8 +278,10 @@ describe('inferno-animation animated functional component', () => {
   });
 
   it('should move class component extending AnimatedMoveComponent from DOM', (done) => {
-    const My = ({ children }): InfernoNode => {
-      return <div>{children}</div>;
+    const My = (props): InfernoNode => {
+      useAnimatedProps(props);
+
+      return <div>{props.children}</div>;
     };
 
     const anim = {
@@ -336,8 +350,10 @@ describe('inferno-animation animated functional component', () => {
   });
 
   it('should render class component extending AnimatedMoveComponent to a string', () => {
-    const MyComponent = ({ children }): InfernoNode => {
-      return <div>{children}</div>;
+    const MyComponent = (props): InfernoNode => {
+      useAnimatedProps(props);
+
+      return <div>{props.children}</div>;
     };
 
     const anim = {

@@ -9,6 +9,7 @@ import {
 import { ChildFlags, VNodeFlags } from 'inferno-vnode-flags';
 import {
   _CI,
+  _CFS,
   _HI,
   _M,
   _MCCC,
@@ -16,7 +17,9 @@ import {
   _MFCC,
   _MP,
   _MR,
+  _RFCH,
   _RFC as renderFunctionalComponent,
+  _SFCS,
   AnimationQueues,
   type ContextObject,
   EMPTY_OBJ,
@@ -96,7 +99,12 @@ function hydrateComponent(
     );
     _MCCC(ref, instance, lifecycle, animations);
   } else {
-    const input = _HI(renderFunctionalComponent(vNode, context));
+    const component = _SFCS(vNode, _CFS(vNode, context, isSVG));
+    const input = _HI(
+      _RFCH(component, () => renderFunctionalComponent(vNode, context)),
+    );
+
+    component.input = input;
     currentNode = hydrateVNode(
       input,
       parentDOM,

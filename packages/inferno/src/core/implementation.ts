@@ -1,9 +1,9 @@
 import type {
   ForwardRef,
   InfernoNode,
+  MemoizedComponent,
   ParentDOM,
   Ref,
-  Refs,
   VNode,
 } from './types';
 import { ChildFlags, VNodeFlags } from 'inferno-vnode-flags';
@@ -24,6 +24,7 @@ import {
 } from './validate';
 import { Fragment, mergeUnsetProperties, options } from './../DOM/utils/common';
 import { type Component, type ComponentType } from './component';
+import { isForwardRefComponent, isMemoizedComponent } from './memo';
 
 const keyPrefix = '$';
 
@@ -59,7 +60,7 @@ export function createVNode<P>(
   childFlags?: ChildFlags,
   props?: Readonly<P> | null,
   key?: string | number | null,
-  ref?: Ref | Refs<P> | null,
+  ref?: Ref | null,
 ): VNode {
   if (process.env.NODE_ENV !== 'production') {
     if (flags & VNodeFlags.Component) {
@@ -99,29 +100,15 @@ export function createVNode<P>(
   return vNode;
 }
 
-function mergeDefaultHooks(flags, type, ref) {
-  if (flags & VNodeFlags.ComponentClass) {
-    return ref;
-  }
-
-  const defaultHooks = (flags & VNodeFlags.ForwardRef ? type.render : type)
-    .defaultHooks;
-
-  if (isNullOrUndef(defaultHooks)) {
-    return ref;
-  }
-
-  if (isNullOrUndef(ref)) {
-    return defaultHooks;
-  }
-
-  return mergeUnsetProperties(ref, defaultHooks);
-}
-
 function mergeDefaultProps(flags, type, props) {
   // set default props
-  const defaultProps = (flags & VNodeFlags.ForwardRef ? type.render : type)
-    .defaultProps;
+  const defaultProps = (
+    flags & VNodeFlags.Memo
+      ? type
+      : flags & VNodeFlags.ForwardRef
+        ? type.render
+        : type
+  ).defaultProps;
 
   if (isNullOrUndef(defaultProps)) {
     return props;
@@ -143,7 +130,13 @@ function resolveComponentFlags(flags: VNodeFlags, type): VNodeFlags {
     return VNodeFlags.ComponentClass;
   }
 
-  if (type.render) {
+  if (isMemoizedComponent(type)) {
+    return isForwardRefComponent(type.render)
+      ? VNodeFlags.MemoComponent | VNodeFlags.ForwardRef
+      : VNodeFlags.MemoComponent;
+  }
+
+  if (isForwardRefComponent(type)) {
     return VNodeFlags.ForwardRefComponent;
   }
 
@@ -156,10 +149,11 @@ export function createComponentVNode<P>(
     | Function
     | ComponentType<P>
     | Component<P, unknown>
-    | ForwardRef<P, unknown>,
+    | ForwardRef<P, unknown>
+    | MemoizedComponent<P>,
   props?: Readonly<P> | null,
   key?: null | string | number,
-  ref?: Ref | Refs<P> | null,
+  ref?: Ref | null,
 ): VNode {
   if (process.env.NODE_ENV !== 'production') {
     if ((flags & VNodeFlags.HtmlElement) !== 0) {
@@ -178,7 +172,7 @@ export function createComponentVNode<P>(
     flags,
     key,
     mergeDefaultProps(flags, type, props),
-    mergeDefaultHooks(flags, type, ref),
+    ref,
     type,
   ) as VNode;
 

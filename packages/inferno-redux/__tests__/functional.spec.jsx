@@ -19,9 +19,8 @@ describe('Inferno - redux -specifics', () => {
   });
 
   describe('Functional component connect', () => {
-    it('Should be possible to define lifecycle events', () => {
+    it('Should render connected functional components', () => {
       const store = createStore(stringBuilder);
-      let mountedCalled = 0;
 
       function FunctionalComponent() {
         return <div>Hello world</div>;
@@ -31,11 +30,6 @@ describe('Inferno - redux -specifics', () => {
         () => ({}),
         (dispatch) => ({
           dispatch,
-          ref: {
-            onComponentDidMount() {
-              mountedCalled++;
-            },
-          },
         }),
       )(FunctionalComponent);
 
@@ -43,20 +37,16 @@ describe('Inferno - redux -specifics', () => {
 
       render(<Container store={store} />, div);
 
-      expect(mountedCalled).toBe(1);
-
       expect(div.innerHTML).toBe('<div>Hello world</div>');
       store.dispatch({ type: 'APPEND', payload: 'a' });
 
       render(<Container store={store} />, div);
 
       expect(div.innerHTML).toBe('<div>Hello world</div>');
-      expect(mountedCalled).toBe(1);
     });
 
-    it('Should be possible to define default lifecycle events', () => {
+    it('Should ignore stale default lifecycle events', () => {
       const store = createStore(stringBuilder);
-      let mountedCalled = 0;
       let updateCounter = 0;
 
       function FunctionalComponent(props) {
@@ -73,11 +63,6 @@ describe('Inferno - redux -specifics', () => {
         () => ({}),
         (dispatch) => ({
           dispatch,
-          ref: {
-            onComponentDidMount() {
-              mountedCalled++;
-            },
-          },
         }),
       )(FunctionalComponent);
 
@@ -86,7 +71,6 @@ describe('Inferno - redux -specifics', () => {
       render(<Container name="Inferno" store={store} />, div);
 
       expect(updateCounter).toBe(0);
-      expect(mountedCalled).toBe(1);
 
       expect(div.innerHTML).toBe('<div>Hello Inferno!</div>');
 
@@ -94,8 +78,7 @@ describe('Inferno - redux -specifics', () => {
 
       render(<Container name="Inferno1" store={store} />, div);
       expect(div.innerHTML).toBe('<div>Hello Inferno1!</div>');
-      expect(updateCounter).toBe(1);
-      expect(mountedCalled).toBe(1);
+      expect(updateCounter).toBe(0);
     });
   });
 });

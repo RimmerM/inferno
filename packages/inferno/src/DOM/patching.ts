@@ -16,7 +16,9 @@ import {
   unmountAllChildren,
 } from './unmounting';
 import {
-  type AnimationQueues,
+  AnimationQueues,
+  callAll,
+  callAllAnimationHooks,
   appendChild,
   callAllMoveAnimationHooks,
   createDerivedState,
@@ -26,6 +28,7 @@ import {
   removeChild,
   removeVNodeDOM,
   replaceChild,
+  renderCheck,
   setTextContent,
 } from './utils/common';
 import {
@@ -39,6 +42,17 @@ import {
 } from './utils/componentUtil';
 import { validateKeys } from '../core/validate';
 import { mountRef, unmountRef } from '../core/refs';
+import {
+  commitFunctionalComponentEffects,
+  createFunctionalComponentState,
+  type FunctionalComponentState,
+  renderFunctionalComponentWithHooks,
+  setFunctionalComponentUpdate,
+  setFunctionalComponentState,
+} from '../core/hooks';
+import { shallowEqualProps } from '../core/memo';
+
+setFunctionalComponentUpdate(updateFunctionalComponent);
 
 function replaceWithNewNode(
   lastVNode,
@@ -785,41 +799,98 @@ function patchFunctionalComponent(
   lifecycle: Array<() => void>,
   animations: AnimationQueues,
 ): void {
-  let shouldUpdate: boolean = true;
-  const nextProps = nextVNode.props || EMPTY_OBJ;
-  const nextRef = nextVNode.ref;
-  const lastProps = lastVNode.props;
-  const nextHooksDefined = !isNullOrUndef(nextRef);
-  const lastInput = lastVNode.children;
+  const component =
+    lastVNode.$H || createFunctionalComponentState(nextVNode, context, isSVG);
+  const lastInput = component.input || lastVNode.children;
 
-  if (nextHooksDefined && isFunction(nextRef.onComponentShouldUpdate)) {
-    shouldUpdate = nextRef.onComponentShouldUpdate(lastProps, nextProps);
+  if (
+    nextVNode.flags & VNodeFlags.Memo &&
+    lastVNode.ref === nextVNode.ref &&
+    component.context === context &&
+    (nextVNode.type.compare || shallowEqualProps)(
+      lastVNode.props || EMPTY_OBJ,
+      nextVNode.props || EMPTY_OBJ,
+    )
+  ) {
+    component.isSVG = isSVG;
+    component.unmounted = false;
+    component.vNode = nextVNode;
+    nextVNode.children = lastInput;
+    nextVNode.dom = lastVNode.dom;
+    setFunctionalComponentState(nextVNode, component);
+
+    return;
   }
 
-  if (shouldUpdate) {
-    if (nextHooksDefined && isFunction(nextRef.onComponentWillUpdate)) {
-      nextRef.onComponentWillUpdate(lastProps, nextProps);
-    }
-    const nextInput = normalizeRoot(
+  component.context = context;
+  component.isSVG = isSVG;
+  component.unmounted = false;
+  component.vNode = nextVNode;
+  setFunctionalComponentState(nextVNode, component);
+
+  const nextInput = normalizeRoot(
+    renderFunctionalComponentWithHooks(component, () =>
       renderFunctionalComponent(nextVNode, context),
+    ),
+  );
+
+  patch(
+    lastInput,
+    nextInput,
+    parentDOM,
+    context,
+    isSVG,
+    nextNode,
+    lifecycle,
+    animations,
+  );
+
+  component.input = nextInput;
+  nextVNode.children = nextInput;
+  commitFunctionalComponentEffects(component, lifecycle);
+}
+
+function updateFunctionalComponent(
+  component: FunctionalComponentState,
+): void {
+  const lastInput = component.input;
+
+  if (isNullOrUndef(lastInput)) {
+    return;
+  }
+
+  const parentDOM = (findDOMFromVNode(lastInput, true) as Element)
+    .parentNode as Element;
+  const lifecycle: Array<() => void> = [];
+  const animations: AnimationQueues = new AnimationQueues();
+
+  renderCheck.v = true;
+
+  try {
+    const nextInput = normalizeRoot(
+      renderFunctionalComponentWithHooks(component, () =>
+        renderFunctionalComponent(component.vNode, component.context),
+      ),
     );
 
     patch(
       lastInput,
       nextInput,
       parentDOM,
-      context,
-      isSVG,
-      nextNode,
+      component.context,
+      component.isSVG,
+      null,
       lifecycle,
       animations,
     );
-    nextVNode.children = nextInput;
-    if (nextHooksDefined && isFunction(nextRef.onComponentDidUpdate)) {
-      nextRef.onComponentDidUpdate(lastProps, nextProps);
-    }
-  } else {
-    nextVNode.children = lastInput;
+
+    component.input = nextInput;
+    component.vNode.children = nextInput;
+    commitFunctionalComponentEffects(component, lifecycle);
+    callAll(lifecycle);
+    callAllAnimationHooks(animations.componentDidAppear);
+  } finally {
+    renderCheck.v = false;
   }
 }
 

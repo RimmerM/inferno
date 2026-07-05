@@ -6,11 +6,14 @@ import {
   AnimationQueues,
   callAllAnimationHooks,
   clearVNodeDOM,
-  EMPTY_OBJ,
   findDOMFromVNode,
   removeVNodeDOM,
 } from './utils/common';
 import { unmountRef } from '../core/refs';
+import {
+  type FunctionalComponentState,
+  unmountFunctionalComponentHooks,
+} from '../core/hooks';
 
 export function remove(
   vNode: VNode,
@@ -66,7 +69,6 @@ export function unmount(vNode, animations: AnimationQueues): void {
           children,
           children.$LI.dom,
           flags,
-          undefined,
         );
       }
 
@@ -74,17 +76,13 @@ export function unmount(vNode, animations: AnimationQueues): void {
       children.$UN = true;
       unmount(children.$LI, childAnimations);
     } else if (flags & VNodeFlags.ComponentFunction) {
-      // If we have a onComponentWillDisappear on this component, block children from animating
+      // If this component has an animation disappear hook, block children from animating
       let childAnimations = animations;
-      ref = vNode.ref;
+      ref = vNode.$H;
       if (!isNullOrUndef(ref)) {
         let domEl: Element | null = null;
 
-        if (isFunction(ref.onComponentWillUnmount)) {
-          domEl = findDOMFromVNode(vNode, true);
-          ref.onComponentWillUnmount(domEl, vNode.props || EMPTY_OBJ);
-        }
-        if (isFunction(ref.onComponentWillDisappear)) {
+        if (isFunction(ref.animation?.onDisappear)) {
           childAnimations = new AnimationQueues();
           domEl = domEl || findDOMFromVNode(vNode, true);
           addDisappearAnimationHook(
@@ -92,9 +90,9 @@ export function unmount(vNode, animations: AnimationQueues): void {
             ref,
             domEl as Element,
             flags,
-            vNode.props,
           );
         }
+        unmountFunctionalComponentHooks(ref);
       }
       unmount(children, childAnimations);
     } else if (flags & VNodeFlags.Portal) {
@@ -163,17 +161,16 @@ export function removeAllChildren(
 // Only add animations to queue in browser
 function addDisappearAnimationHook(
   animations: AnimationQueues,
-  instanceOrRef,
+  instanceOrRef: any | FunctionalComponentState,
   dom: Element,
   flags: VNodeFlags,
-  props,
 ): void {
   // @ts-expect-error TODO: Here is something weird check this behavior
   animations.componentWillDisappear.push((callback) => {
     if (flags & VNodeFlags.ComponentClass) {
       instanceOrRef.componentWillDisappear(dom, callback);
     } else if (flags & VNodeFlags.ComponentFunction) {
-      instanceOrRef.onComponentWillDisappear(dom, props, callback);
+      instanceOrRef.animation.onDisappear(dom, callback);
     }
   });
 }

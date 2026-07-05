@@ -1,5 +1,5 @@
 import { renderToStaticMarkup, renderToString } from 'inferno-server';
-import { Component } from 'inferno';
+import { Component, useAnimation } from 'inferno';
 
 /**
  * NOTE! Animation hooks aren't called during SSR because they use different rendering paths
@@ -52,21 +52,23 @@ describe('SSR Creation (JSX)', () => {
     }, 10);
   });
 
-  it('should not call "onComponentDidAppear" when component is rendered with renderToStaticMarkup', (done) => {
+  it('should not call functional animation hooks when component is rendered with renderToStaticMarkup', (done) => {
     const spyer = jasmine.createSpy();
 
     const MyComp = () => {
-      return <div />;
-    };
+      useAnimation({
+        onAppear(dom) {
+          spyer('didAppear');
+          expect(dom instanceof HTMLDivElement).toEqual(true);
+        },
+      });
 
-    const onComponentDidAppear = (dom) => {
-      spyer('didAppear');
-      expect(dom instanceof HTMLDivElement).toEqual(true);
+      return <div />;
     };
 
     class App extends Component {
       render() {
-        return <MyComp onComponentDidAppear={onComponentDidAppear} />;
+        return <MyComp />;
       }
     }
 
@@ -80,21 +82,23 @@ describe('SSR Creation (JSX)', () => {
     }, 10);
   });
 
-  it('should not call "onComponentDidAppear" when component is rendered with renderToString', (done) => {
+  it('should not call functional animation hooks when component is rendered with renderToString', (done) => {
     const spyer = jasmine.createSpy();
 
     const MyComp = () => {
-      return <div />;
-    };
+      useAnimation({
+        onAppear(dom) {
+          spyer('didAppear');
+          expect(dom instanceof HTMLDivElement).toEqual(true);
+        },
+      });
 
-    const onComponentDidAppear = (dom) => {
-      spyer('didAppear');
-      expect(dom instanceof HTMLDivElement).toEqual(true);
+      return <div />;
     };
 
     class App extends Component {
       render() {
-        return <MyComp onComponentDidAppear={onComponentDidAppear} />;
+        return <MyComp />;
       }
     }
 

@@ -125,7 +125,17 @@ export function renderFunctionalComponent(
   context: ContextObject,
 ): InfernoNode {
   const props = vNode.props || EMPTY_OBJ;
+  const type = vNode.type;
+
+  if (vNode.flags & VNodeFlags.Memo) {
+    const render = type.render;
+
+    return vNode.flags & VNodeFlags.ForwardRef
+      ? render.render(props, vNode.ref, context)
+      : render(props, context);
+  }
+
   return vNode.flags & VNodeFlags.ForwardRef
-    ? vNode.type.render(props, vNode.ref, context)
-    : vNode.type(props, context);
+    ? type.render(props, vNode.ref, context)
+    : type(props, context);
 }

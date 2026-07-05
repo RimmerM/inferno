@@ -2079,16 +2079,29 @@ describe('Children - (JSX)', () => {
             <span>foobar</span>
             {bool ? (
               <FooBar
-                onComponentWillMount={foobarLifecycle.componentWillMount}
-                onComponentWillUnmount={foobarLifecycle.componentWillUnmount}
+                onMount={foobarLifecycle.componentWillMount}
+                onUnmount={foobarLifecycle.componentWillUnmount}
               />
             ) : null}
           </div>
         );
       }
 
-      function FooBar() {
-        return <span>initial</span>;
+      class FooBar extends Component<{
+        onMount: () => void;
+        onUnmount: () => void;
+      }> {
+        public componentWillMount() {
+          this.props.onMount();
+        }
+
+        public componentWillUnmount() {
+          this.props.onUnmount();
+        }
+
+        public render() {
+          return <span>initial</span>;
+        }
       }
 
       render(<Wrapper bool={true} />, container);
@@ -2133,15 +2146,28 @@ describe('Children - (JSX)', () => {
         return (
           <span>
             <Test
-              onComponentWillMount={testLifeCycle.componentWillMount}
-              onComponentWillUnmount={testLifeCycle.componentWillUnmount}
+              onMount={testLifeCycle.componentWillMount}
+              onUnmount={testLifeCycle.componentWillUnmount}
             />
           </span>
         );
       }
 
-      function Test() {
-        return <em>f</em>;
+      class Test extends Component<{
+        onMount: () => void;
+        onUnmount: () => void;
+      }> {
+        public componentWillMount() {
+          this.props.onMount();
+        }
+
+        public componentWillUnmount() {
+          this.props.onUnmount();
+        }
+
+        public render() {
+          return <em>f</em>;
+        }
       }
 
       render(<Wrapper bool={true} />, container);
@@ -2188,18 +2214,30 @@ describe('Children - (JSX)', () => {
       function FooBar() {
         return (
           <span>
-            <Test onComponentWillUnmount={testLifeCycle.componentWillUnmount} />
-            <Foo onComponentWillUnmount={fooLifecycle.componentWillUnmount} />
+            <Test onUnmount={testLifeCycle.componentWillUnmount} />
+            <Foo onUnmount={fooLifecycle.componentWillUnmount} />
           </span>
         );
       }
 
-      function Test() {
-        return <em>f</em>;
+      class Test extends Component<{ onUnmount: () => void }> {
+        public componentWillUnmount() {
+          this.props.onUnmount();
+        }
+
+        public render() {
+          return <em>f</em>;
+        }
       }
 
-      function Foo() {
-        return <em>f</em>;
+      class Foo extends Component<{ onUnmount: () => void }> {
+        public componentWillUnmount() {
+          this.props.onUnmount();
+        }
+
+        public render() {
+          return <em>f</em>;
+        }
       }
 
       render(<Wrapper bool={true} />, container);
@@ -2259,15 +2297,21 @@ describe('Children - (JSX)', () => {
           <div>
             <span />
             <Test5
-              onComponentWillUnmount={testLifecycle.componentWillUnmount}
+              onUnmount={testLifecycle.componentWillUnmount}
             />
             <span />
           </div>
         );
       }
 
-      function Test5() {
-        return <h1>ShouldUnMountMe</h1>;
+      class Test5 extends Component<{ onUnmount: () => void }> {
+        public componentWillUnmount() {
+          this.props.onUnmount();
+        }
+
+        public render() {
+          return <h1>ShouldUnMountMe</h1>;
+        }
       }
 
       render(<Wrapper bool={true} />, container);
@@ -2295,23 +2339,37 @@ describe('Children - (JSX)', () => {
         },
       };
 
-      function Wrapper() {
-        return (
-          <div>
-            <span>foobar</span>
-            <FooBar
-              onComponentWillUnmount={testLifecycle.componentWillUnmountTwo}
-            />
-          </div>
-        );
+      class Wrapper extends Component<{
+        onUnmount: () => void;
+      }> {
+        public componentWillUnmount() {
+          this.props.onUnmount();
+        }
+
+        public render() {
+          return (
+            <div>
+              <span>foobar</span>
+              <FooBar
+                onUnmount={testLifecycle.componentWillUnmountTwo}
+              />
+            </div>
+          );
+        }
       }
 
-      function FooBar() {
-        return (
-          <span>
-            <Test />
-          </span>
-        );
+      class FooBar extends Component<{ onUnmount: () => void }> {
+        public componentWillUnmount() {
+          this.props.onUnmount();
+        }
+
+        public render() {
+          return (
+            <span>
+              <Test />
+            </span>
+          );
+        }
       }
 
       function Test() {
@@ -2319,7 +2377,7 @@ describe('Children - (JSX)', () => {
       }
 
       render(
-        <Wrapper onComponentWillUnmount={testLifecycle.componentWillUnmount} />,
+        <Wrapper onUnmount={testLifecycle.componentWillUnmount} />,
         container,
       );
 

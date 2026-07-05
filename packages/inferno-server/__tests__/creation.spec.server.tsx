@@ -1,5 +1,10 @@
 import { renderToStaticMarkup, renderToString } from 'inferno-server';
-import { Component, createFragment } from 'inferno';
+import {
+  Component,
+  createFragment,
+  useSyncExternalStore,
+  useSyncExternalStoreWithSelector,
+} from 'inferno';
 import { createElement } from 'inferno-create-element';
 import { ChildFlags } from 'inferno-vnode-flags';
 import { hydrate } from 'inferno-hydrate';
@@ -631,6 +636,45 @@ describe('SSR Creation (JSX)', () => {
       }
 
       expect(renderToString(<Test />)).toBe('<div>1</div>');
+    });
+
+    it('Should use server snapshot for useSyncExternalStore', () => {
+      const subscribe = jasmine
+        .createSpy('subscribe')
+        .and.returnValue(() => {});
+
+      function StoreReader() {
+        const value = useSyncExternalStore(
+          subscribe,
+          () => 'client',
+          () => 'server',
+        );
+
+        return <div>{value}</div>;
+      }
+
+      expect(renderToString(<StoreReader />)).toBe('<div>server</div>');
+      expect(subscribe).not.toHaveBeenCalled();
+    });
+
+    it('Should use selected server snapshot for useSyncExternalStoreWithSelector', () => {
+      const subscribe = jasmine
+        .createSpy('subscribe')
+        .and.returnValue(() => {});
+
+      function StoreReader() {
+        const value = useSyncExternalStoreWithSelector(
+          subscribe,
+          () => ({ value: 'client' }),
+          () => ({ value: 'server' }),
+          (snapshot) => snapshot.value,
+        );
+
+        return <div>{value}</div>;
+      }
+
+      expect(renderToString(<StoreReader />)).toBe('<div>server</div>');
+      expect(subscribe).not.toHaveBeenCalled();
     });
   });
 });

@@ -4,6 +4,7 @@ import type {
   LinkedEvent,
   VNode,
 } from './../../core/types';
+import type { FunctionalComponentState } from '../../core/hooks';
 import { isFunction, isNull, isNullOrUndef, isUndefined } from 'inferno-shared';
 import { ChildFlags, VNodeFlags } from 'inferno-vnode-flags';
 import { isLinkEventObject } from '../events/linkEvent';
@@ -207,12 +208,11 @@ export function removeVNodeDOM(
 function addMoveAnimationHook(
   animations: AnimationQueues,
   parentVNode,
-  refOrInstance,
+  refOrInstance: any | FunctionalComponentState,
   dom: Element,
   parentDOM: Element,
   nextNode: Element,
   flags,
-  props?,
 ): void {
   animations.componentWillMove.push({
     dom,
@@ -220,7 +220,7 @@ function addMoveAnimationHook(
       if ((flags & VNodeFlags.ComponentClass) !== 0) {
         refOrInstance.componentWillMove(parentVNode, parentDOM, dom);
       } else if ((flags & VNodeFlags.ComponentFunction) !== 0) {
-        refOrInstance.onComponentWillMove(parentVNode, parentDOM, dom, props);
+        refOrInstance.animation.onMove(parentVNode, parentDOM, dom);
       }
     },
     next: nextNode,
@@ -236,7 +236,6 @@ export function moveVNodeDOM(
   animations: AnimationQueues,
 ): void {
   let refOrInstance;
-  let instanceProps;
   const instanceFlags = vNode.flags;
 
   while (!isNullOrUndef(vNode)) {
@@ -246,7 +245,7 @@ export function moveVNodeDOM(
       if (
         !isNullOrUndef(refOrInstance) &&
         (isFunction(refOrInstance.componentWillMove) ||
-          isFunction(refOrInstance.onComponentWillMove))
+          isFunction(refOrInstance.animation?.onMove))
       ) {
         addMoveAnimationHook(
           animations,
@@ -256,7 +255,6 @@ export function moveVNodeDOM(
           parentDOM,
           nextNode,
           instanceFlags,
-          instanceProps,
         );
       } else {
         // TODO: Should we delay this too to support mixing animated moves with regular?
@@ -269,11 +267,9 @@ export function moveVNodeDOM(
     if ((flags & VNodeFlags.ComponentClass) !== 0) {
       refOrInstance = vNode.children;
       // TODO: We should probably deprecate this in V9 since it is inconsitent with other class component hooks
-      instanceProps = vNode.props;
       vNode = children.$LI;
     } else if ((flags & VNodeFlags.ComponentFunction) !== 0) {
-      refOrInstance = vNode.ref;
-      instanceProps = vNode.props;
+      refOrInstance = vNode.$H;
       vNode = children;
     } else if ((flags & VNodeFlags.Fragment) !== 0) {
       if (vNode.childFlags === ChildFlags.HasVNodeChildren) {

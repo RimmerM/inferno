@@ -1,4 +1,11 @@
-import { EMPTY_OBJ, type InfernoNode, type VNode } from 'inferno';
+import {
+  _CFS,
+  _RFCH,
+  _SFCS,
+  EMPTY_OBJ,
+  type InfernoNode,
+  type VNode,
+} from 'inferno';
 import { VNodeFlags } from 'inferno-vnode-flags';
 
 const rxUnescaped = /["'&<>]/;
@@ -123,8 +130,25 @@ export function createDerivedState(
 }
 
 export function renderFunctionalComponent(vNode: VNode, context): InfernoNode {
+  const component = vNode.$H || _SFCS(vNode, _CFS(vNode, context, false));
   const props = vNode.props || EMPTY_OBJ;
-  return vNode.flags & VNodeFlags.ForwardRef
-    ? vNode.type.render(props, vNode.ref, context)
-    : vNode.type(props, context);
+  const type = vNode.type;
+
+  component.isServer = true;
+  component.context = context;
+  component.vNode = vNode;
+
+  return _RFCH(component, () => {
+    if (vNode.flags & VNodeFlags.Memo) {
+      const render = type.render;
+
+      return vNode.flags & VNodeFlags.ForwardRef
+        ? render.render(props, vNode.ref, context)
+        : render(props, context);
+    }
+
+    return vNode.flags & VNodeFlags.ForwardRef
+      ? type.render(props, vNode.ref, context)
+      : type(props, context);
+  });
 }

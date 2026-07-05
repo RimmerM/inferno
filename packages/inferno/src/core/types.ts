@@ -5,6 +5,7 @@ import type {
   NativeDragEvent,
   NativeFocusEvent,
 } from './nativetypes';
+import type { FunctionalComponentState } from './hooks';
 import type { ChildFlags, VNodeFlags } from 'inferno-vnode-flags';
 import type { PropertiesHyphen } from 'csstype';
 
@@ -191,6 +192,7 @@ export type Key = string | number | undefined | null;
 type CrossOrigin = 'anonymous' | 'use-credentials' | '' | null | undefined;
 
 export interface VNode {
+  $H?: FunctionalComponentState;
   children: InfernoNode;
   childFlags: ChildFlags;
   dom: Element | null;
@@ -211,61 +213,40 @@ export type Ref<T = Element> = {
   bivarianceHack(instance: T | null): any;
 }['bivarianceHack'];
 
-export interface ForwardRef<P, T> extends Inferno.StatelessComponent<P> {
-  ref: Ref<T>;
+export interface ForwardRef<P, T> {
+  (
+    props: Readonly<{ children?: InfernoNode } & Props<T> & P>,
+    context?: any,
+  ): Inferno.InfernoElement | null;
+  [key: string]: any;
+  defaultProps?: Partial<P> | undefined | null;
+  render: (
+    props: Readonly<{ children?: InfernoNode } & P>,
+    ref: Ref<T> | RefObject<T> | null,
+    context?: any,
+  ) => InfernoNode;
 }
 
-export interface Refs<P> {
-  onComponentDidMount?: (
-    domNode: Element | null,
-    nextProps: Readonly<{ children?: InfernoNode } & P>,
-  ) => void;
+export type MemoizedComponentComparator<P = any> = (
+  lastProps: Readonly<P>,
+  nextProps: Readonly<P>,
+) => boolean;
 
-  onComponentWillMount?(props: Readonly<{ children?: InfernoNode } & P>): void;
-
-  onComponentShouldUpdate?(
-    lastProps: Readonly<{ children?: InfernoNode } & P>,
-    nextProps: Readonly<{ children?: InfernoNode } & P>,
-  ): boolean;
-
-  onComponentWillUpdate?(
-    lastProps: Readonly<{ children?: InfernoNode } & P>,
-    nextProps: Readonly<{ children?: InfernoNode } & P>,
-  ): void;
-
-  onComponentDidUpdate?(
-    lastProps: Readonly<{ children?: InfernoNode } & P>,
-    nextProps: Readonly<{ children?: InfernoNode } & P>,
-  ): void;
-
-  onComponentWillUnmount?(
-    domNode: Element,
-    nextProps: Readonly<{ children?: InfernoNode } & P>,
-  ): void;
-
-  onComponentDidAppear?(
-    domNode: Element,
-    props: Readonly<{ children?: InfernoNode } & P>,
-  ): void;
-
-  onComponentWillDisappear?(
-    domNode: Element,
-    props: Readonly<{ children?: InfernoNode } & P>,
-    callback: Function,
-  ): void;
-
-  onComponentWillMove?(
-    parentVNode: VNode,
-    parentDOM: Element,
-    dom: Element,
-    props: Readonly<{ children?: InfernoNode } & P>,
-  ): void;
+export interface MemoizedComponent<P = any> {
+  (
+    props: Readonly<{ children?: InfernoNode } & Props<any> & P>,
+    context?: any,
+  ): Inferno.InfernoElement | null;
+  $$typeof: symbol | number;
+  compare: MemoizedComponentComparator<P> | null;
+  defaultProps?: Partial<P> | undefined | null;
+  render: Inferno.StatelessComponent<P> | ForwardRef<P, any>;
 }
 
 export interface Props<T> {
   children?: InfernoNode;
   key?: Key;
-  ref?: Ref<T> | undefined;
+  ref?: Ref<T> | RefObject<T> | null | undefined;
 }
 
 export declare namespace Inferno {
@@ -291,7 +272,12 @@ export declare namespace Inferno {
   }
 
   interface InfernoElement<P = any> {
-    type: string | ComponentClass<P> | SFC<P>;
+    type:
+      | string
+      | ComponentClass<P>
+      | SFC<P>
+      | ForwardRef<P, any>
+      | MemoizedComponent<P>;
     props: P;
     key?: Key;
   }
@@ -409,12 +395,10 @@ export declare namespace Inferno {
     (
       props: {
         children?: InfernoNode;
-      } & P &
-        Refs<P>,
+      } & P,
       context?: any,
     ): InfernoElement | null;
     defaultProps?: Partial<P> | undefined | null;
-    defaultHooks?: Refs<P> | undefined | null;
   }
 
   interface ComponentClass<P = {}> {
@@ -2622,7 +2606,6 @@ declare global {
     type LibraryManagedAttributes<C, P> = InfernoManagedAttributes<C, P>;
 
     interface IntrinsicAttributes extends Inferno.Attributes {}
-    interface IntrinsicAttributes extends Inferno.Attributes, Refs<any> {}
     interface IntrinsicClassAttributes<T> extends Inferno.ClassAttributes<T> {}
 
     interface IntrinsicElements {

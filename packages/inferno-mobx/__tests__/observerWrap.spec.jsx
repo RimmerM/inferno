@@ -82,29 +82,9 @@ describe('Stateless components observerWrap', () => {
     });
 
     let todoItemRenderings = 0;
-    let todoItemUnmounts = 0;
-    let todoItemUpdates = 0;
-    let todoItemWillUpdates = 0;
     const TodoItemBase = ({ todo }) => {
       todoItemRenderings++;
       return <li>|{todo.title}</li>;
-    };
-    TodoItemBase.defaultHooks = {
-      onComponentDidUpdate: () => {
-        todoItemUpdates++;
-      },
-      onComponentShouldUpdate: (
-        { todo: { title: prev } },
-        { todo: { title: next } },
-      ) => {
-        return prev !== next;
-      },
-      onComponentWillUnmount: () => {
-        todoItemUnmounts++;
-      },
-      onComponentWillUpdate: () => {
-        todoItemWillUpdates++;
-      },
     };
     const TodoItem = observerWrap(TodoItemBase);
 
@@ -155,7 +135,7 @@ describe('Stateless components observerWrap', () => {
     expect(expectedOutput).toEqual(['|aa', '|b']);
 
     expect(todoListRenderings).toBe(2); // 'should have rendered list twice');
-    expect(todoItemRenderings).toBe(3); //, 'item2 should have rendered as well');
+    expect(todoItemRenderings).toBe(4); //, 'item2 should have rendered as well');
     expect(getObserverTree(store, 'todos').observers.length).toBe(1); //, 'observers count shouldn\'t change');
     expect(getObserverTree(store.todos[0], 'title').observers.length).toBe(1); //, 'title observers should not have increased');
     expect(getObserverTree(store.todos[1], 'title').observers.length).toBe(1); //, 'title observers should have increased');
@@ -175,7 +155,7 @@ describe('Stateless components observerWrap', () => {
     expect(expectedOutput).toEqual(['|aa', '|bb']);
 
     expect(todoListRenderings).toBe(2); // 'should have rendered list twice');
-    expect(todoItemRenderings).toBe(4); //, 'item2 should have rendered as well');
+    expect(todoItemRenderings).toBe(5); //, 'item2 should have rendered as well');
     expect(getObserverTree(store, 'todos').observers.length).toBe(1); //, 'observers count shouldn\'t change');
     expect(getObserverTree(store.todos[0], 'title').observers.length).toBe(1); //, 'title observers should not have increased');
     expect(getObserverTree(store.todos[1], 'title').observers.length).toBe(1); //, 'title observers should have increased');
@@ -186,14 +166,11 @@ describe('Stateless components observerWrap', () => {
     const oldTodo = store.todos.pop();
 
     expect(todoListRenderings).toBe(3); //, 'should have rendered list another time');
-    expect(todoItemRenderings).toBe(4); //, 'item1 should not have rerendered');
+    expect(todoItemRenderings).toBe(6); //, 'item1 should have rerendered');
     expect(container.querySelectorAll('li').length).toBe(1); //, 'list should have only on item in list now');
     expect(getObserverTree(oldTodo, 'title').observers).not.toBeDefined(); //, 'title observers should have decreased');
     expect(getObserverTree(oldTodo, 'completed').observers).not.toBeDefined(); //, 'completed observers should not have decreased');
     render(null, container);
-    expect(todoItemUnmounts).toBe(2);
-    expect(todoItemUpdates).toBe(2);
-    expect(todoItemWillUpdates).toBe(2);
     expect(getObserverTree(store, 'todos').observers).not.toBeDefined();
     expect(
       getObserverTree(store.todos[0], 'title').observers,
@@ -211,23 +188,9 @@ describe('Stateless components observerWrap', () => {
     });
 
     let todoItemRenderings = 0;
-    let todoItemUnmounts = 0;
-    let todoItemUpdates = 0;
-    let todoItemWillUpdates = 0;
     const TodoItemBase = ({ todo }) => {
       todoItemRenderings++;
       return <li>|{todo.title}</li>;
-    };
-    TodoItemBase.defaultHooks = {
-      onComponentDidUpdate: () => {
-        todoItemUpdates++;
-      },
-      onComponentWillUnmount: () => {
-        todoItemUnmounts++;
-      },
-      onComponentWillUpdate: () => {
-        todoItemWillUpdates++;
-      },
     };
     const TodoItem = observerWrap(TodoItemBase);
 
@@ -313,9 +276,6 @@ describe('Stateless components observerWrap', () => {
     expect(getObserverTree(oldTodo, 'title').observers).not.toBeDefined(); //, 'title observers should have decreased');
     expect(getObserverTree(oldTodo, 'completed').observers).not.toBeDefined(); //, 'completed observers should not have decreased');
     render(null, container);
-    expect(todoItemUnmounts).toBe(2);
-    expect(todoItemUpdates).toBe(4);
-    expect(todoItemWillUpdates).toBe(4);
     expect(getObserverTree(store, 'todos').observers).not.toBeDefined();
     expect(
       getObserverTree(store.todos[0], 'title').observers,
@@ -406,15 +366,10 @@ describe('Stateless components observerWrap', () => {
     expect(container.querySelector('div').textContent).toBe('soup');
   });
 
-  it('Callbacks are bound on render', function () {
+  it('updates observerWrap components when observed data changes', function () {
     const data = observable({
       name: 'tea',
     });
-
-    let a = 0;
-    let x = 0;
-    let y = 0;
-    let z = 0;
 
     const ViewFn = ({ item }) => {
       return <span>{item.name}</span>;
@@ -422,83 +377,20 @@ describe('Stateless components observerWrap', () => {
 
     const View = observerWrap(ViewFn);
 
-    const check = ({ item: prev }, { item: next }) => prev !== next;
-
-    render(
-      <View
-        item={data}
-        onComponentWillUpdate={(p, n) => (p !== n ? a++ : x++)}
-      />,
-      container,
-    );
-
-    expect(a).toBe(0);
-    expect(x).toBe(0);
+    render(<View item={data} />, container);
+    expect(container.innerHTML).toBe('<span>tea</span>');
 
     runInAction(() => {
       data.name = 'coffee';
     });
 
-    expect(x).toBe(1);
-
-    render(
-      <View
-        item={data}
-        onComponentWillUpdate={(p, n) => (p !== n ? a++ : y++)}
-      />,
-      container,
-    );
-
-    expect(a).toBe(1);
-    expect(x).toBe(1);
-    expect(y).toBe(0);
+    expect(container.innerHTML).toBe('<span>coffee</span>');
 
     runInAction(() => {
       data.name = 'soda';
     });
 
-    expect(a).toBe(1);
-    expect(x).toBe(1);
-    expect(y).toBe(1);
-
-    render(
-      <View
-        item={data}
-        onComponentWillUpdate={(p, n) => (p !== n ? a++ : z++)}
-        onComponentShouldUpdate={check}
-      />,
-      container,
-    );
-
-    expect(a).toBe(1);
-    expect(z).toBe(0);
-    expect(y).toBe(1);
-
-    runInAction(() => {
-      data.name = 'water';
-    });
-
-    expect(y).toBe(2);
-
-    render(
-      <View
-        item={data}
-        onComponentWillUpdate={(p, n) => (p !== n ? a++ : x++)}
-      />,
-      container,
-    );
-
-    expect(a).toBe(2);
-    expect(x).toBe(1);
-    expect(y).toBe(2);
-
-    runInAction(() => {
-      data.name = 'juice';
-    });
-
-    expect(a).toBe(2);
-    expect(y).toBe(2);
-    expect(x).toBe(2);
+    expect(container.innerHTML).toBe('<span>soda</span>');
   });
 
   it('component should not be inject', () => {

@@ -4,10 +4,11 @@ import {
   createFragment,
   createVNode,
   getFlagsForElementVnode,
+  type ForwardRef,
   type Inferno,
   type Key,
+  type MemoizedComponent,
   type Props,
-  type Refs,
   type VNode,
 } from 'inferno';
 import {
@@ -22,7 +23,9 @@ export function createElement<P>(
   type:
     | string
     | Inferno.ComponentClass<P>
-    | Inferno.StatelessComponent<P & Refs<P>>
+    | ForwardRef<P, any>
+    | MemoizedComponent<P>
+    | Inferno.StatelessComponent<P>
     | typeof Component<P, any>,
   props?: (P & Props<P>) | null,
   ...children: any[]
@@ -30,7 +33,7 @@ export function createElement<P>(
   if (process.env.NODE_ENV !== 'production') {
     if (isInvalid(type)) {
       throw new Error(
-        'Inferno Error: createElement() name parameter cannot be undefined, null, false or true, It must be a string, class, function or forwardRef.',
+        'Inferno Error: createElement() name parameter cannot be undefined, null, false or true, It must be a string, class, function, memo or forwardRef.',
       );
     }
   }
@@ -92,29 +95,12 @@ export function createElement<P>(
         } else if (prop === 'ref') {
           ref = props.ref;
         } else {
-          switch (prop) {
-            case 'onComponentDidAppear':
-            case 'onComponentDidMount':
-            case 'onComponentDidUpdate':
-            case 'onComponentShouldUpdate':
-            case 'onComponentWillDisappear':
-            case 'onComponentWillMount':
-            case 'onComponentWillUnmount':
-            case 'onComponentWillUpdate':
-              if (!ref) {
-                ref = {};
-              }
-              ref[prop] = props[prop];
-              break;
-            default:
-              newProps[prop] = props[prop];
-              break;
-          }
+          newProps[prop] = props[prop];
         }
       }
     }
 
-    return createComponentVNode(flags, type, newProps, key, ref);
+    return createComponentVNode(flags, type as any, newProps, key, ref);
   }
 
   if (flags & VNodeFlags.Fragment) {

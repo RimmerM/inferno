@@ -1,4 +1,21 @@
-import { Component, render } from 'inferno';
+import {
+  Component,
+  createRef,
+  forwardRef,
+  memo,
+  render,
+  rerender,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  useSyncExternalStoreWithSelector,
+} from 'inferno';
 import Spy = jasmine.Spy;
 
 describe('Component lifecycle (JSX)', () => {
@@ -369,14 +386,11 @@ describe('Component lifecycle (JSX)', () => {
     });
   });
 
-  describe('Stateless component hooks', () => {
+  describe('Functional component hooks', () => {
     let _container;
 
-    function StatelessComponent(_props: { a?: unknown }) {
-      return <div>Hello world</div>;
-    }
-
     afterEach(function () {
+      rerender();
       render(null, _container);
     });
 
@@ -384,160 +398,596 @@ describe('Component lifecycle (JSX)', () => {
       _container = document.createElement('div');
     });
 
-    it('"onComponentWillMount" hook should fire, args props', () => {
-      const spyObj = {
-        fn: () => {},
-      };
-      const spy = spyOn(spyObj, 'fn');
-      render(
-        <StatelessComponent a={1} onComponentWillMount={spyObj.fn} />,
-        _container,
-      );
+    function createExternalStore<T>(initialValue: T) {
+      let value = initialValue;
+      const listeners: Array<() => void> = [];
+      const store = {
+        subscribeCount: 0,
+        unsubscribeCount: 0,
+        getSnapshot() {
+          return value;
+        },
+        set(nextValue: T) {
+          value = nextValue;
 
-      expect(spy.calls.count()).toBe(1);
-      expect(spy.calls.argsFor(0).length).toBe(1);
-      expect(spy.calls.argsFor(0)[0]).toEqual({ a: 1 });
+          const currentListeners = listeners.slice();
+
+          for (let i = 0; i < currentListeners.length; i++) {
+            currentListeners[i]();
+          }
+        },
+        subscribe(listener: () => void) {
+          store.subscribeCount++;
+          listeners.push(listener);
+
+          return () => {
+            store.unsubscribeCount++;
+
+            const index = listeners.indexOf(listener);
+
+            if (index > -1) {
+              listeners.splice(index, 1);
+            }
+          };
+        },
+      };
+
+      return store;
+    }
+
+    it('should update state from useState', () => {
+      let setValue: (value: number | ((lastValue: number) => number)) => void;
+
+      function Counter() {
+        const [value, updateValue] = useState(1);
+        setValue = updateValue;
+
+        return <div>{value}</div>;
+      }
+
+      render(<Counter />, _container);
+      expect(_container.innerHTML).toBe('<div>1</div>');
+
+      setValue!((value) => value + 1);
+      rerender();
+
+      expect(_container.innerHTML).toBe('<div>2</div>');
     });
 
-    it('"onComponentDidMount" hook should fire, args DOM props', () => {
-      const spyObj = {
-        fn: () => {},
-      };
-      const spy = spyOn(spyObj, 'fn');
-      render(
-        <StatelessComponent a={1} onComponentDidMount={spyObj.fn} />,
-        _container,
-      );
+    it('should update state from useReducer', () => {
+      let dispatch: (value: number) => void;
 
-      expect(spy.calls.count()).toBe(1);
-      expect(spy.calls.argsFor(0).length).toBe(2);
-      expect(spy.calls.argsFor(0)[0]).toBe(_container.firstChild);
-      expect(spy.calls.argsFor(0)[1]).toEqual({ a: 1 });
+      function Counter() {
+        const [value, updateValue] = useReducer(
+          (lastValue: number, action: number) => lastValue + action,
+          1,
+        );
+        dispatch = updateValue;
+
+        return <div>{value}</div>;
+      }
+
+      render(<Counter />, _container);
+      expect(_container.innerHTML).toBe('<div>1</div>');
+
+      dispatch!(2);
+      rerender();
+
+      expect(_container.innerHTML).toBe('<div>3</div>');
     });
 
-    it('"onComponentWillUnmount" hook should fire, args DOM props', () => {
-      const spyObj = {
-        fn: () => {},
-      };
-      const spy = spyOn(spyObj, 'fn');
-      render(
-        <StatelessComponent a={1} onComponentWillUnmount={spyObj.fn} />,
-        _container,
-      );
-      expect(spy.calls.count()).toBe(0);
-      // do unmount
+    it('should subscribe to external stores and update from notifications', () => {
+      const store = createExternalStore(1);
+      let renders = 0;
+
+      function StoreReader() {
+        renders++;
+
+        const value = useSyncExternalStore(
+          store.subscribe,
+          store.getSnapshot,
+        );
+
+        return <div>{value}</div>;
+      }
+
+      render(<StoreReader />, _container);
+
+      expect(_container.innerHTML).toBe('<div>1</div>');
+      expect(store.subscribeCount).toBe(1);
+      expect(renders).toBe(1);
+
+      store.set(2);
+      rerender();
+
+      expect(_container.innerHTML).toBe('<div>2</div>');
+      expect(renders).toBe(2);
+
+      store.set(2);
+      rerender();
+
+      expect(_container.innerHTML).toBe('<div>2</div>');
+      expect(renders).toBe(2);
+
       render(null, _container);
 
-      expect(spy.calls.count()).toBe(1);
-      expect(spy.calls.argsFor(0).length).toBe(2);
-      expect(spy.calls.argsFor(0)[0].outerHTML).toBe('<div>Hello world</div>');
-      expect(spy.calls.argsFor(0)[1]).toEqual({ a: 1 });
+      expect(store.unsubscribeCount).toBe(1);
     });
 
-    it('"onComponentWillUpdate" hook should fire, args props nextProps', () => {
-      const spyObj = {
-        fn: () => {},
-      };
-      const spy = spyOn(spyObj, 'fn');
-      render(
-        <StatelessComponent a={1} onComponentWillUpdate={spyObj.fn} />,
-        _container,
-      );
-      expect(spy.calls.count()).toBe(0); // Update 1
-      render(
-        <StatelessComponent a={2} onComponentWillUpdate={spyObj.fn} />,
-        _container,
-      );
-      expect(spy.calls.count()).toBe(1); // Update 2
-      expect(spy.calls.argsFor(0).length).toBe(2);
-      expect(spy.calls.argsFor(0)[0]).toEqual({ a: 1 });
-      expect(spy.calls.argsFor(0)[1]).toEqual({ a: 2 });
+    it('should resubscribe when external store subscribe function changes', () => {
+      const firstStore = createExternalStore(1);
+      const secondStore = createExternalStore(2);
+
+      function StoreReader(props: { store: typeof firstStore }) {
+        const value = useSyncExternalStore(
+          props.store.subscribe,
+          props.store.getSnapshot,
+        );
+
+        return <div>{value}</div>;
+      }
+
+      render(<StoreReader store={firstStore} />, _container);
+
+      expect(_container.innerHTML).toBe('<div>1</div>');
+      expect(firstStore.subscribeCount).toBe(1);
+
+      render(<StoreReader store={secondStore} />, _container);
+
+      expect(_container.innerHTML).toBe('<div>2</div>');
+      expect(firstStore.unsubscribeCount).toBe(1);
+      expect(secondStore.subscribeCount).toBe(1);
+
+      secondStore.set(3);
+      rerender();
+
+      expect(_container.innerHTML).toBe('<div>3</div>');
     });
 
-    it('"onComponentDidUpdate" hook should fire, args prevProps props', () => {
-      const spyObj = {
-        fn: () => {},
-      };
-      const spy = spyOn(spyObj, 'fn');
-      render(
-        <StatelessComponent a={1} onComponentDidUpdate={spyObj.fn} />,
-        _container,
-      );
-      expect(spy.calls.count()).toBe(0); // Update 1
-      render(
-        <StatelessComponent a={2} onComponentDidUpdate={spyObj.fn} />,
-        _container,
-      );
-      expect(spy.calls.count()).toBe(1); // Update 2
-      expect(spy.calls.argsFor(0).length).toBe(2);
-      expect(spy.calls.argsFor(0)[0]).toEqual({ a: 1 });
-      expect(spy.calls.argsFor(0)[1]).toEqual({ a: 2 });
+    it('should catch external store changes between render and subscription', () => {
+      let value = 1;
+      let didChangeBeforeSubscribe = false;
+
+      function getSnapshot() {
+        return value;
+      }
+
+      function subscribe(_listener: () => void) {
+        if (!didChangeBeforeSubscribe) {
+          didChangeBeforeSubscribe = true;
+          value = 2;
+        }
+
+        return () => {};
+      }
+
+      function StoreReader() {
+        return <div>{useSyncExternalStore(subscribe, getSnapshot)}</div>;
+      }
+
+      render(<StoreReader />, _container);
+
+      expect(_container.innerHTML).toBe('<div>1</div>');
+
+      rerender();
+
+      expect(_container.innerHTML).toBe('<div>2</div>');
     });
 
-    it('"onComponentShouldUpdate" hook should fire, should call render when return true, args props nextProps', () => {
-      let onComponentShouldUpdateCount = 0;
-      let renderCount = 0;
-      const spyObj = {
-        fn: () => {
-          onComponentShouldUpdateCount++;
-          return true;
+    it('should update memoized components from external stores', () => {
+      const store = createExternalStore(1);
+      let renders = 0;
+
+      const StoreReader = memo(function StoreReader(props: { label: string }) {
+        renders++;
+
+        const value = useSyncExternalStore(
+          store.subscribe,
+          store.getSnapshot,
+        );
+
+        return (
+          <div>
+            {props.label}:{value}
+          </div>
+        );
+      });
+
+      render(<StoreReader label="stable" />, _container);
+
+      expect(_container.innerHTML).toBe('<div>stable:1</div>');
+      expect(renders).toBe(1);
+
+      store.set(2);
+      rerender();
+
+      expect(_container.innerHTML).toBe('<div>stable:2</div>');
+      expect(renders).toBe(2);
+    });
+
+    it('should select external store values and skip updates when selection is equal', () => {
+      const store = createExternalStore({ first: 1, second: 1 });
+      let renders = 0;
+
+      function StoreReader() {
+        renders++;
+
+        const value = useSyncExternalStoreWithSelector(
+          store.subscribe,
+          store.getSnapshot,
+          undefined,
+          (snapshot) => snapshot.first,
+        );
+
+        return <div>{value}</div>;
+      }
+
+      render(<StoreReader />, _container);
+
+      expect(_container.innerHTML).toBe('<div>1</div>');
+      expect(renders).toBe(1);
+
+      store.set({ first: 1, second: 2 });
+      rerender();
+
+      expect(_container.innerHTML).toBe('<div>1</div>');
+      expect(renders).toBe(1);
+
+      store.set({ first: 2, second: 2 });
+      rerender();
+
+      expect(_container.innerHTML).toBe('<div>2</div>');
+      expect(renders).toBe(2);
+    });
+
+    it('should use custom equality for selected external store values', () => {
+      const store = createExternalStore({ first: 1, second: 1 });
+      let renders = 0;
+
+      function StoreReader() {
+        renders++;
+
+        const value = useSyncExternalStoreWithSelector(
+          store.subscribe,
+          store.getSnapshot,
+          undefined,
+          (snapshot) => ({ value: snapshot.first }),
+          (lastValue, nextValue) => lastValue.value === nextValue.value,
+        );
+
+        return <div>{value.value}</div>;
+      }
+
+      render(<StoreReader />, _container);
+
+      expect(_container.innerHTML).toBe('<div>1</div>');
+      expect(renders).toBe(1);
+
+      store.set({ first: 1, second: 2 });
+      rerender();
+
+      expect(_container.innerHTML).toBe('<div>1</div>');
+      expect(renders).toBe(1);
+
+      store.set({ first: 2, second: 2 });
+      rerender();
+
+      expect(_container.innerHTML).toBe('<div>2</div>');
+      expect(renders).toBe(2);
+    });
+
+    it('should recompute selected external store values when selector changes', () => {
+      const store = createExternalStore({ value: 2 });
+
+      function StoreReader(props: { multiplier: number }) {
+        const value = useSyncExternalStoreWithSelector(
+          store.subscribe,
+          store.getSnapshot,
+          undefined,
+          (snapshot) => snapshot.value * props.multiplier,
+        );
+
+        return <div>{value}</div>;
+      }
+
+      render(<StoreReader multiplier={2} />, _container);
+      expect(_container.innerHTML).toBe('<div>4</div>');
+
+      render(<StoreReader multiplier={3} />, _container);
+      expect(_container.innerHTML).toBe('<div>6</div>');
+    });
+
+    it('should catch selected external store changes between render and subscription', () => {
+      let snapshot = { first: 1, second: 1 };
+      let didChangeBeforeSubscribe = false;
+
+      function getSnapshot() {
+        return snapshot;
+      }
+
+      function subscribe(_listener: () => void) {
+        if (!didChangeBeforeSubscribe) {
+          didChangeBeforeSubscribe = true;
+          snapshot = { first: 2, second: 1 };
+        }
+
+        return () => {};
+      }
+
+      function StoreReader() {
+        const value = useSyncExternalStoreWithSelector(
+          subscribe,
+          getSnapshot,
+          undefined,
+          (nextSnapshot) => nextSnapshot.first,
+        );
+
+        return <div>{value}</div>;
+      }
+
+      render(<StoreReader />, _container);
+
+      expect(_container.innerHTML).toBe('<div>1</div>');
+
+      rerender();
+
+      expect(_container.innerHTML).toBe('<div>2</div>');
+    });
+
+    it('should preserve useRef identity across renders', () => {
+      const refs: Array<{ current: number }> = [];
+
+      function RefComponent(props: { value: number }) {
+        const ref = useRef(props.value);
+
+        refs.push(ref);
+        ref.current = props.value;
+
+        return <div>{ref.current}</div>;
+      }
+
+      render(<RefComponent value={1} />, _container);
+      render(<RefComponent value={2} />, _container);
+
+      expect(refs.length).toBe(2);
+      expect(refs[0]).toBe(refs[1]);
+      expect(_container.innerHTML).toBe('<div>2</div>');
+    });
+
+    it('should memoize values and callbacks by dependency array', () => {
+      let memoCount = 0;
+      const values: unknown[] = [];
+      const callbacks: unknown[] = [];
+
+      function MemoComponent(props: { value: number }) {
+        const value = useMemo(() => {
+          memoCount++;
+          return { value: props.value };
+        }, [props.value]);
+        const callback = useCallback(() => value.value, [value]);
+
+        values.push(value);
+        callbacks.push(callback);
+
+        return <div>{callback()}</div>;
+      }
+
+      render(<MemoComponent value={1} />, _container);
+      render(<MemoComponent value={1} />, _container);
+      render(<MemoComponent value={2} />, _container);
+
+      expect(memoCount).toBe(2);
+      expect(values[0]).toBe(values[1]);
+      expect(callbacks[0]).toBe(callbacks[1]);
+      expect(values[1]).not.toBe(values[2]);
+      expect(callbacks[1]).not.toBe(callbacks[2]);
+      expect(_container.innerHTML).toBe('<div>2</div>');
+    });
+
+    it('should skip memoized functional component updates when props are shallowly equal', () => {
+      let setParentValue: ((value: number) => void) | null = null;
+      let childRenders = 0;
+
+      const Child = memo(function Child(props: { value: string }) {
+        childRenders++;
+
+        return <span>{props.value}</span>;
+      });
+
+      function Parent() {
+        const [, setValue] = useState(0);
+        setParentValue = setValue;
+
+        return (
+          <div>
+            <Child value="stable" />
+          </div>
+        );
+      }
+
+      render(<Parent />, _container);
+      expect(_container.innerHTML).toBe('<div><span>stable</span></div>');
+      expect(childRenders).toBe(1);
+
+      setParentValue!(1);
+      rerender();
+
+      expect(_container.innerHTML).toBe('<div><span>stable</span></div>');
+      expect(childRenders).toBe(1);
+    });
+
+    it('should use custom memo comparators', () => {
+      let childRenders = 0;
+
+      const Child = memo(
+        function Child(props: { id: number; label: string }) {
+          childRenders++;
+
+          return <span>{props.label}</span>;
         },
-      };
-      const spy = spyOn(spyObj, 'fn').and.callThrough();
-      const StatelessComponent3 = (_props: { a?: unknown }) => {
-        renderCount++;
-        return null;
-      };
-
-      render(
-        <StatelessComponent3 a={1} onComponentShouldUpdate={spyObj.fn} />,
-        _container,
+        (lastProps, nextProps) => lastProps.id === nextProps.id,
       );
-      expect(onComponentShouldUpdateCount).toBe(0); // Update 1
-      expect(renderCount).toBe(1); // Rendered 1 time
 
-      render(
-        <StatelessComponent3 a={2} onComponentShouldUpdate={spyObj.fn} />,
-        _container,
-      );
-      expect(onComponentShouldUpdateCount).toBe(1); // Update 2
-      expect(renderCount).toBe(2); // Rendered 2 time
-      expect(spy.calls.argsFor(0).length).toBe(2);
-      expect(spy.calls.argsFor(0)[0]).toEqual({ a: 1 });
-      expect(spy.calls.argsFor(0)[1]).toEqual({ a: 2 });
+      render(<Child id={1} label="first" />, _container);
+      render(<Child id={1} label="skipped" />, _container);
+
+      expect(_container.innerHTML).toBe('<span>first</span>');
+      expect(childRenders).toBe(1);
+
+      render(<Child id={2} label="second" />, _container);
+
+      expect(_container.innerHTML).toBe('<span>second</span>');
+      expect(childRenders).toBe(2);
     });
 
-    it('"onComponentShouldUpdate" hook should fire, should not call render when return false, args props nextProps', () => {
-      let onComponentShouldUpdateCount = 0;
-      let renderCount = 0;
-      const spyObj = {
-        fn: () => {
-          onComponentShouldUpdateCount++;
-          return false;
-        },
-      };
-      const spy = spyOn(spyObj, 'fn').and.callThrough();
-      const StatelessComponent2 = (_props: { a?: unknown }) => {
-        renderCount++;
-        return null;
-      };
+    it('should update memoized components from their own hook state', () => {
+      let setChildValue: ((value: number) => void) | null = null;
+      let childRenders = 0;
 
-      render(
-        <StatelessComponent2 a={1} onComponentShouldUpdate={spyObj.fn} />,
-        _container,
-      );
-      expect(onComponentShouldUpdateCount).toBe(0); // Update 1
-      expect(renderCount).toBe(1); // Rendered 1 time
+      const Child = memo(function Child() {
+        const [value, setValue] = useState(1);
+        setChildValue = setValue;
+        childRenders++;
 
-      render(
-        <StatelessComponent2 a={2} onComponentShouldUpdate={spyObj.fn} />,
-        _container,
-      );
-      expect(onComponentShouldUpdateCount).toBe(1); // Update 2
-      expect(renderCount).toBe(1); // Rendered 1 time
-      expect(spy.calls.argsFor(0).length).toBe(2);
-      expect(spy.calls.argsFor(0)[0]).toEqual({ a: 1 });
-      expect(spy.calls.argsFor(0)[1]).toEqual({ a: 2 });
+        return <span>{value}</span>;
+      });
+
+      render(<Child />, _container);
+      expect(_container.innerHTML).toBe('<span>1</span>');
+      expect(childRenders).toBe(1);
+
+      setChildValue!(2);
+      rerender();
+
+      expect(_container.innerHTML).toBe('<span>2</span>');
+      expect(childRenders).toBe(2);
+    });
+
+    it('should update memoized components when context changes', () => {
+      let childRenders = 0;
+
+      const Child = memo(function Child(
+        props: { label: string },
+        context: { theme: string },
+      ) {
+        childRenders++;
+
+        return (
+          <span>
+            {props.label}:{context.theme}
+          </span>
+        );
+      });
+
+      class Provider extends Component<{ theme: string }, unknown> {
+        public getChildContext() {
+          return {
+            theme: this.props.theme,
+          };
+        }
+
+        public render() {
+          return <Child label="stable" />;
+        }
+      }
+
+      render(<Provider theme="dark" />, _container);
+      render(<Provider theme="light" />, _container);
+
+      expect(_container.innerHTML).toBe('<span>stable:light</span>');
+      expect(childRenders).toBe(2);
+    });
+
+    it('should run layout effects synchronously and passive effects asynchronously', (done) => {
+      const calls: string[] = [];
+
+      function EffectComponent(props: { value: number }) {
+        useLayoutEffect(() => {
+          calls.push('layout:' + props.value);
+
+          return () => {
+            calls.push('layout-cleanup:' + props.value);
+          };
+        }, [props.value]);
+        useEffect(() => {
+          calls.push('effect:' + props.value);
+
+          return () => {
+            calls.push('effect-cleanup:' + props.value);
+          };
+        }, [props.value]);
+
+        return <div>{props.value}</div>;
+      }
+
+      render(<EffectComponent value={1} />, _container);
+      expect(calls).toEqual(['layout:1']);
+
+      setTimeout(() => {
+        expect(calls).toEqual(['layout:1', 'effect:1']);
+
+        render(<EffectComponent value={2} />, _container);
+        expect(calls).toEqual([
+          'layout:1',
+          'effect:1',
+          'layout-cleanup:1',
+          'layout:2',
+        ]);
+
+        setTimeout(() => {
+          expect(calls).toEqual([
+            'layout:1',
+            'effect:1',
+            'layout-cleanup:1',
+            'layout:2',
+            'effect-cleanup:1',
+            'effect:2',
+          ]);
+
+          render(null, _container);
+          expect(calls).toEqual([
+            'layout:1',
+            'effect:1',
+            'layout-cleanup:1',
+            'layout:2',
+            'effect-cleanup:1',
+            'effect:2',
+            'layout-cleanup:2',
+            'effect-cleanup:2',
+          ]);
+          done();
+        }, 0);
+      }, 0);
+    });
+
+    it('should expose imperative handles', () => {
+      const ref = createRef<{ getValue(): number }>();
+
+      const ImperativeComponent = forwardRef(function ImperativeComponent(
+        props: { value: number },
+        ref,
+      ) {
+        useImperativeHandle(
+          ref,
+          () => ({
+            getValue() {
+              return props.value;
+            },
+          }),
+          [props.value],
+        );
+
+        return <div>{props.value}</div>;
+      });
+
+      render(<ImperativeComponent ref={ref} value={1} />, _container);
+      expect(ref.current!.getValue()).toBe(1);
+
+      render(<ImperativeComponent ref={ref} value={2} />, _container);
+      expect(ref.current!.getValue()).toBe(2);
+
+      render(null, _container);
+      expect(ref.current).toBe(null);
     });
   });
 

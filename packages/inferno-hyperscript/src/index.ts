@@ -4,7 +4,9 @@ import {
   createVNode,
   Fragment,
   getFlagsForElementVnode,
+  type ForwardRef,
   type InfernoNode,
+  type MemoizedComponent,
   type VNode,
 } from 'inferno';
 import {
@@ -74,7 +76,7 @@ function isChildren(x: any): boolean {
  * @returns {VNode} returns new virtual node
  */
 export function h(
-  _tag: string | VNode | Function,
+  _tag: string | VNode | Function | ForwardRef<any, any> | MemoizedComponent,
   _props?: any,
   _children?: InfernoNode,
 ): VNode {
@@ -99,15 +101,8 @@ export function h(
       key = _props[prop];
     } else if (prop === 'ref') {
       ref = _props[prop];
-    } else if (prop === 'hooks') {
-      ref = _props[prop];
     } else if (prop === 'children') {
       children = _props[prop];
-    } else if (!isElement && prop.substr(0, 11) === 'onComponent') {
-      if (!ref) {
-        ref = {};
-      }
-      ref[prop] = _props[prop];
     } else {
       newProps[prop] = _props[prop];
     }

@@ -386,18 +386,24 @@ describe('setState', () => {
         return (
           <div>
             <Child foo={this.state.foo} callback={this._setActive} />
-            <ChildBar
-              foo={this.state.foo}
-              onComponentWillMount={this._setBar}
-            />
+            <ChildBar foo={this.state.foo} onMount={this._setBar} />
             <ChildBar foo={this.state.foo} />
           </div>
         );
       }
     }
 
-    function ChildBar({ foo }) {
-      return <div>{foo}</div>;
+    class ChildBar extends Component<{
+      foo: string;
+      onMount?: () => void;
+    }> {
+      public componentWillMount() {
+        this.props.onMount?.();
+      }
+
+      public render() {
+        return <div>{this.props.foo}</div>;
+      }
     }
 
     class Child extends Component<{ foo: string; callback: () => void }> {
