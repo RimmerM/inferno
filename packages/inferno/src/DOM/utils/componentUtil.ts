@@ -128,14 +128,8 @@ export function renderFunctionalComponent(
   const type = vNode.type;
 
   if (vNode.flags & VNodeFlags.Memo) {
-    const render = type.render;
-
-    return vNode.flags & VNodeFlags.ForwardRef
-      ? render.render(props, vNode.ref, context)
-      : render(props, context);
+    return type.render(props, context);
   }
 
-  return vNode.flags & VNodeFlags.ForwardRef
-    ? type.render(props, vNode.ref, context)
-    : type(props, context);
+  return type(props, context);
 }

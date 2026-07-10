@@ -4,7 +4,6 @@ import {
   createVNode,
   Fragment,
   getFlagsForElementVnode,
-  type ForwardRef,
   type InfernoNode,
   type MemoizedComponent,
   type VNode,
@@ -76,7 +75,7 @@ function isChildren(x: any): boolean {
  * @returns {VNode} returns new virtual node
  */
 export function h(
-  _tag: string | VNode | Function | ForwardRef<any, any> | MemoizedComponent,
+  _tag: string | VNode | Function | MemoizedComponent,
   _props?: any,
   _children?: InfernoNode,
 ): VNode {
@@ -90,7 +89,7 @@ export function h(
   const tag = isElement ? parseTag(_tag, _props) : _tag;
   const newProps: any = {};
   let key = null;
-  let ref: any = null;
+  let ref: any;
   let children = null;
   let className = null;
 

@@ -2,7 +2,6 @@ import { h } from 'inferno-hyperscript';
 import {
   Component,
   createRef,
-  forwardRef,
   Fragment,
   RefObject,
   render,
@@ -409,11 +408,12 @@ describe('HyperScript (non-JSX)', () => {
   });
 
   it('Should be possible to forward createRef', () => {
-    const FancyButton = forwardRef((props, ref) =>
-      h('button', { ref, className: 'FancyButton' }, props.children),
-    );
-
-    expect(FancyButton.render).toBeDefined();
+    const FancyButton = (props) =>
+      h(
+        'button',
+        { ref: props.ref, className: 'FancyButton' },
+        props.children,
+      );
 
     class Hello extends Component {
       private readonly btn: RefObject<Element>;

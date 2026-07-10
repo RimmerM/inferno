@@ -31,7 +31,8 @@ export function cloneVNode(vNodeToClone: VNode, props?, ...childArgs): VNode {
   const childLen = childArgs.length;
   let className = vNodeToClone.className;
   let key = vNodeToClone.key;
-  let ref = vNodeToClone.ref;
+  let ref =
+    flags & VNodeFlags.ComponentFunction ? undefined : vNodeToClone.ref;
   if (props) {
     if (props.className !== void 0) {
       className = props.className as string;

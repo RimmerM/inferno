@@ -31,7 +31,7 @@ import {
   mountElement,
   mountFunctionalComponentCallbacks,
 } from './DOM/mounting';
-import { createRef, forwardRef, mountRef } from './core/refs';
+import { createRef, mountRef } from './core/refs';
 import { memo } from './core/memo';
 import {
   createFunctionalComponentState,
@@ -89,7 +89,6 @@ export {
   createRenderer,
   createTextVNode,
   createVNode,
-  forwardRef,
   directClone,
   findDOMFromVNode,
   getFlagsForElementVnode,

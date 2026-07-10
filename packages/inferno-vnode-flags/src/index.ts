@@ -18,12 +18,10 @@ export const enum VNodeFlags {
   ContentEditable = 1 << 12,
   Fragment = 1 << 13,
   InUse = 1 << 14,
-  ForwardRef = 1 << 15,
   Normalized = 1 << 16,
   Memo = 1 << 17,
 
   /* Masks */
-  ForwardRefComponent = ForwardRef | ComponentFunction,
   MemoComponent = Memo | ComponentFunction,
   FormElement = InputElement | TextareaElement | SelectElement,
   Element = HtmlElement | SvgElement | FormElement,

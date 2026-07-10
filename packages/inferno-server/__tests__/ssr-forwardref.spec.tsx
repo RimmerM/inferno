@@ -1,7 +1,7 @@
 import {
   Component,
   createRef,
-  forwardRef,
+  type Props,
   type RefObject,
   render,
 } from 'inferno';
@@ -14,7 +14,7 @@ import { hydrate } from 'inferno-hydrate';
 import { isString } from 'inferno-shared';
 import concatStream from 'concat-stream';
 
-describe('SSR -> Hydrate - Forward Ref', () => {
+describe('SSR -> Hydrate - direct ref props', () => {
   let container;
 
   beforeEach(function () {
@@ -44,13 +44,11 @@ describe('SSR -> Hydrate - Forward Ref', () => {
 
   for (const method of [renderToString, streamAsString, streamQueueAsString]) {
     it('Should be possible to forward createRef', (done) => {
-      const FancyButton = forwardRef((props, ref) => (
-        <button ref={ref} className="FancyButton">
+      const FancyButton = (props: Props<HTMLButtonElement>) => (
+        <button ref={props.ref} className="FancyButton">
           {props.children}
         </button>
-      ));
-
-      expect(FancyButton.render).toBeDefined();
+      );
 
       class Hello extends Component<any, any> {
         private readonly btn: RefObject<any>;
@@ -95,13 +93,11 @@ describe('SSR -> Hydrate - Forward Ref', () => {
     });
 
     it('Should be possible to forward callback ref', (done) => {
-      const FancyButton = forwardRef((props, ref) => (
-        <button ref={ref} className="FancyButton">
+      const FancyButton = (props: Props<HTMLButtonElement>) => (
+        <button ref={props.ref} className="FancyButton">
           {props.children}
         </button>
-      ));
-
-      expect(FancyButton.render).toBeDefined();
+      );
 
       class Hello extends Component {
         public render() {
@@ -140,16 +136,14 @@ describe('SSR -> Hydrate - Forward Ref', () => {
       });
     });
 
-    it('Should be possible to patch forwardRef component', () => {
-      const FancyButton = forwardRef((props, ref) => {
+    it('Should be possible to patch a component with a ref prop', () => {
+      const FancyButton = (props: Props<HTMLButtonElement>) => {
         return (
-          <button ref={ref} className="FancyButton">
+          <button ref={props.ref} className="FancyButton">
             {props.children}
           </button>
         );
-      });
-
-      expect(FancyButton.render).toBeDefined();
+      };
 
       SSRtoString(method, <FancyButton />, function (htmlString) {
         let firstVal: Element | null = null;

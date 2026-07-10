@@ -1,4 +1,4 @@
-import type { ForwardRef, Inferno, MemoizedComponent } from './types';
+import type { Inferno, MemoizedComponent } from './types';
 import { isFunction, isNullOrUndef, warning } from 'inferno-shared';
 
 const memoType =
@@ -8,10 +8,6 @@ const memoType =
 
 export function isMemoizedComponent(type): type is MemoizedComponent<any> {
   return !isNullOrUndef(type) && type.$$typeof === memoType;
-}
-
-export function isForwardRefComponent(type): type is ForwardRef<any, any> {
-  return !isNullOrUndef(type) && !isFunction(type) && isFunction(type.render);
 }
 
 export function shallowEqualProps(lastProps, nextProps): boolean {
@@ -45,11 +41,11 @@ export function shallowEqualProps(lastProps, nextProps): boolean {
 }
 
 export function memo<P>(
-  render: Inferno.StatelessComponent<P> | ForwardRef<P, any>,
+  render: Inferno.StatelessComponent<P>,
   compare?: ((lastProps: Readonly<P>, nextProps: Readonly<P>) => boolean) | null,
 ): MemoizedComponent<P> {
   if (process.env.NODE_ENV !== 'production') {
-    if (!isFunction(render) && !isForwardRefComponent(render)) {
+    if (!isFunction(render)) {
       warning(
         `memo requires a functional component but was given ${
           render === null ? 'null' : typeof render

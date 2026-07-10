@@ -2,7 +2,6 @@ import {
   type Component,
   type ComponentType,
   createComponentVNode,
-  type ForwardRef,
   type InfernoNode,
   type Ref,
 } from 'inferno';
@@ -20,7 +19,7 @@ export interface IWithRouterProps {
 export function withRouter<
   P extends RouteComponentProps<any> & IWithRouterProps,
 >(
-  Com: Function | ComponentType<P> | Component<P, any> | ForwardRef<P, any>,
+  Com: Function | ComponentType<P> | Component<P, any>,
 ): any {
   const C: any = function (props: RouteComponentProps<any> & IWithRouterProps) {
     const { wrappedComponentRef, ...remainingProps } = props;

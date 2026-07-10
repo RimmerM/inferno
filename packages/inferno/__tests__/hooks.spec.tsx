@@ -1,8 +1,8 @@
 import {
   Component,
   createRef,
-  forwardRef,
   memo,
+  type RefObject,
   render,
   rerender,
   useCallback,
@@ -963,12 +963,12 @@ describe('Component lifecycle (JSX)', () => {
     it('should expose imperative handles', () => {
       const ref = createRef<{ getValue(): number }>();
 
-      const ImperativeComponent = forwardRef(function ImperativeComponent(
-        props: { value: number },
-        ref,
-      ) {
+      function ImperativeComponent(props: {
+        value: number;
+        ref?: RefObject<{ getValue(): number }>;
+      }) {
         useImperativeHandle(
-          ref,
+          props.ref,
           () => ({
             getValue() {
               return props.value;
@@ -978,7 +978,7 @@ describe('Component lifecycle (JSX)', () => {
         );
 
         return <div>{props.value}</div>;
-      });
+      }
 
       render(<ImperativeComponent ref={ref} value={1} />, _container);
       expect(ref.current!.getValue()).toBe(1);

@@ -1,5 +1,4 @@
 import type {
-  ForwardRef,
   InfernoNode,
   MemoizedComponent,
   ParentDOM,
@@ -24,7 +23,7 @@ import {
 } from './validate';
 import { Fragment, mergeUnsetProperties, options } from './../DOM/utils/common';
 import { type Component, type ComponentType } from './component';
-import { isForwardRefComponent, isMemoizedComponent } from './memo';
+import { isMemoizedComponent } from './memo';
 
 const keyPrefix = '$';
 
@@ -100,15 +99,9 @@ export function createVNode<P>(
   return vNode;
 }
 
-function mergeDefaultProps(flags, type, props) {
+function mergeDefaultProps(type, props) {
   // set default props
-  const defaultProps = (
-    flags & VNodeFlags.Memo
-      ? type
-      : flags & VNodeFlags.ForwardRef
-        ? type.render
-        : type
-  ).defaultProps;
+  const defaultProps = type.defaultProps;
 
   if (isNullOrUndef(defaultProps)) {
     return props;
@@ -131,13 +124,7 @@ function resolveComponentFlags(flags: VNodeFlags, type): VNodeFlags {
   }
 
   if (isMemoizedComponent(type)) {
-    return isForwardRefComponent(type.render)
-      ? VNodeFlags.MemoComponent | VNodeFlags.ForwardRef
-      : VNodeFlags.MemoComponent;
-  }
-
-  if (isForwardRefComponent(type)) {
-    return VNodeFlags.ForwardRefComponent;
+    return VNodeFlags.MemoComponent;
   }
 
   return VNodeFlags.ComponentFunction;
@@ -149,7 +136,6 @@ export function createComponentVNode<P>(
     | Function
     | ComponentType<P>
     | Component<P, unknown>
-    | ForwardRef<P, unknown>
     | MemoizedComponent<P>,
   props?: Readonly<P> | null,
   key?: null | string | number,
@@ -165,13 +151,26 @@ export function createComponentVNode<P>(
 
   flags = resolveComponentFlags(flags, type);
 
+  let componentProps = mergeDefaultProps(type, props);
+
+  // Function component refs are regular props. JSX transforms pass ref as the
+  // dedicated VNode argument, so move it into props once at creation time.
+  if (flags & VNodeFlags.ComponentFunction && ref !== void 0) {
+    if (isNullOrUndef(componentProps)) {
+      componentProps = { ref };
+    } else {
+      componentProps.ref = ref;
+    }
+    ref = null;
+  }
+
   const vNode = new V(
     ChildFlags.HasInvalidChildren,
     null,
     null,
     flags,
     key,
-    mergeDefaultProps(flags, type, props),
+    componentProps,
     ref,
     type,
   ) as VNode;
@@ -252,13 +251,11 @@ export function normalizeProps(vNode: VNode): VNode {
       vNode.key = props.key;
       props.key = undefined;
     }
-    if (props.ref !== void 0) {
-      if (flags & VNodeFlags.ComponentFunction) {
-        vNode.ref = { ...vNode.ref, ...props.ref };
-      } else {
-        vNode.ref = props.ref;
-      }
-
+    if (
+      props.ref !== void 0 &&
+      !(flags & VNodeFlags.ComponentFunction)
+    ) {
+      vNode.ref = props.ref;
       props.ref = undefined;
     }
   }

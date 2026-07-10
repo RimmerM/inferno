@@ -213,20 +213,6 @@ export type Ref<T = Element> = {
   bivarianceHack(instance: T | null): any;
 }['bivarianceHack'];
 
-export interface ForwardRef<P, T> {
-  (
-    props: Readonly<{ children?: InfernoNode } & Props<T> & P>,
-    context?: any,
-  ): Inferno.InfernoElement | null;
-  [key: string]: any;
-  defaultProps?: Partial<P> | undefined | null;
-  render: (
-    props: Readonly<{ children?: InfernoNode } & P>,
-    ref: Ref<T> | RefObject<T> | null,
-    context?: any,
-  ) => InfernoNode;
-}
-
 export type MemoizedComponentComparator<P = any> = (
   lastProps: Readonly<P>,
   nextProps: Readonly<P>,
@@ -240,7 +226,7 @@ export interface MemoizedComponent<P = any> {
   $$typeof: symbol | number;
   compare: MemoizedComponentComparator<P> | null;
   defaultProps?: Partial<P> | undefined | null;
-  render: Inferno.StatelessComponent<P> | ForwardRef<P, any>;
+  render: Inferno.StatelessComponent<P>;
 }
 
 export interface Props<T> {
@@ -276,7 +262,6 @@ export declare namespace Inferno {
       | string
       | ComponentClass<P>
       | SFC<P>
-      | ForwardRef<P, any>
       | MemoizedComponent<P>;
     props: P;
     key?: Key;

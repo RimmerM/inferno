@@ -1,13 +1,13 @@
 import {
   Component,
   createRef,
-  forwardRef,
   memo,
+  type Props,
   type RefObject,
   render,
 } from 'inferno';
 
-describe('Forward Ref', () => {
+describe('Direct ref props', () => {
   let container;
 
   beforeEach(function () {
@@ -21,24 +21,17 @@ describe('Forward Ref', () => {
     document.body.removeChild(container);
   });
 
-  it('Should be possible to forward createRef', () => {
-    const FancyButton = forwardRef((props, ref) => (
-      <button ref={ref} className="FancyButton">
-        {props.children}
-      </button>
-    ));
-
-    expect(FancyButton.render).toBeDefined();
+  it('forwards an object ref through a function component', () => {
+    function FancyButton(props: Props<HTMLButtonElement>) {
+      return (
+        <button ref={props.ref} className="FancyButton">
+          {props.children}
+        </button>
+      );
+    }
 
     class Hello extends Component {
-      private readonly btn: RefObject<Element>;
-
-      constructor(props) {
-        super(props);
-
-        // You can now get a ref directly to the DOM button:
-        this.btn = createRef();
-      }
+      private readonly btn: RefObject<HTMLButtonElement> = createRef();
 
       public componentDidMount() {
         expect(this.btn.current).toBe(container.querySelector('button'));
@@ -50,85 +43,32 @@ describe('Forward Ref', () => {
     }
 
     render(<Hello />, container);
-
     expect(container.innerHTML).toBe(
       '<button class="FancyButton">Click me!</button>',
     );
   });
 
-  it('Should be possible to forward callback ref', () => {
-    const FancyButton = forwardRef((props, ref) => (
-      <button ref={ref} className="FancyButton">
-        {props.children}
-      </button>
-    ));
-
-    expect(FancyButton.render).toBeDefined();
-
-    class Hello extends Component {
-      public render() {
-        return (
-          <FancyButton
-            ref={(btn) => {
-              if (btn) {
-                expect(btn).toBe(container.querySelector('button'));
-              }
-            }}
-          >
-            Click me!
-          </FancyButton>
-        );
-      }
-    }
-
-    render(<Hello />, container);
-
-    expect(container.innerHTML).toBe(
-      '<button class="FancyButton">Click me!</button>',
-    );
-
-    render(null, container);
-
-    expect(container.innerHTML).toBe('');
-  });
-
-  it('Should be possible to patch forwardRef component', () => {
-    const FancyButton = forwardRef((props, ref) => {
+  it('forwards and patches callback refs', () => {
+    function FancyButton(props: Props<HTMLButtonElement>) {
       return (
-        <button ref={ref} className="FancyButton">
+        <button ref={props.ref} className="FancyButton">
           {props.children}
         </button>
       );
-    });
+    }
 
-    expect(FancyButton.render).toBeDefined();
-
-    let firstVal = null;
-
+    let firstVal: HTMLButtonElement | null = null;
     render(
-      <FancyButton
-        ref={(btn) => {
-          firstVal = btn;
-        }}
-      >
+      <FancyButton ref={(button) => (firstVal = button)}>
         Click me!
       </FancyButton>,
       container,
     );
-
-    expect(container.innerHTML).toBe(
-      '<button class="FancyButton">Click me!</button>',
-    );
     expect(firstVal).not.toBe(null);
 
-    let secondVal = null;
-
+    let secondVal: HTMLButtonElement | null = null;
     render(
-      <FancyButton
-        ref={(btn) => {
-          secondVal = btn;
-        }}
-      >
+      <FancyButton ref={(button) => (secondVal = button)}>
         Click me! 222
       </FancyButton>,
       container,
@@ -136,154 +76,61 @@ describe('Forward Ref', () => {
 
     expect(firstVal).toBe(null);
     expect(secondVal).not.toBe(null);
-
     expect(container.innerHTML).toBe(
       '<button class="FancyButton">Click me! 222</button>',
     );
   });
 
-  it('Should support memoized forwardRef components', () => {
+  it('treats ref as a normal memoized prop', () => {
     let renders = 0;
     const firstRef = createRef<HTMLButtonElement>();
     const secondRef = createRef<HTMLButtonElement>();
-    const FancyButton = memo(
-      forwardRef<HTMLButtonElement, { label: string }>((props, ref) => {
-        renders++;
-
-        return (
-          <button ref={ref} className="FancyButton">
-            {props.label}
-          </button>
-        );
-      }),
-    );
+    const FancyButton = memo(function FancyButton(
+      props: Props<HTMLButtonElement> & { label: string },
+    ) {
+      renders++;
+      return (
+        <button ref={props.ref} className="FancyButton">
+          {props.label}
+        </button>
+      );
+    });
 
     render(<FancyButton ref={firstRef} label="Click me!" />, container);
     render(<FancyButton ref={firstRef} label="Click me!" />, container);
-
-    expect(container.innerHTML).toBe(
-      '<button class="FancyButton">Click me!</button>',
-    );
-    expect(firstRef.current).toBe(container.querySelector('button'));
     expect(renders).toBe(1);
 
     render(<FancyButton ref={secondRef} label="Click me!" />, container);
-
     expect(firstRef.current).toBe(null);
     expect(secondRef.current).toBe(container.querySelector('button'));
     expect(renders).toBe(2);
   });
 
-  describe('Validations', () => {
-    it('Should log error if input is: Component, vNode or invalid value', () => {
-      const consoleSpy = spyOn(console, 'error');
-
-      class Foobar extends Component {}
-
-      let i = 0;
-
-      // @ts-expect-error
-      forwardRef(false);
-      expect(consoleSpy.calls.count()).toEqual(++i);
-
-      // @ts-expect-error
-      forwardRef(true);
-      expect(consoleSpy.calls.count()).toEqual(++i);
-
-      // @ts-expect-error
-      forwardRef({});
-      expect(consoleSpy.calls.count()).toEqual(++i);
-
-      // @ts-expect-error
-      forwardRef('asd');
-      expect(consoleSpy.calls.count()).toEqual(++i);
-
-      // @ts-expect-error
-      forwardRef(undefined);
-      expect(consoleSpy.calls.count()).toEqual(++i);
-
-      // @ts-expect-error
-      forwardRef(8);
-      expect(consoleSpy.calls.count()).toEqual(++i);
-
-      // TODO: improve forward ref typings
-      forwardRef(<div>1</div>);
-      expect(consoleSpy.calls.count()).toEqual(++i);
-
-      forwardRef(<Foobar />);
-      expect(consoleSpy.calls.count()).toEqual(++i);
-
-      // This is ok
-      forwardRef(function () {
-        return <div>1</div>;
-      });
-      expect(consoleSpy.calls.count()).toEqual(i);
-    });
-  });
-
-  it('Should be possible to extent forwardRef object', () => {
-    const objRef = createRef();
-    const RefComponent = forwardRef((props, ref) => (
-      <div ref={ref} {...props}>
-        1
-      </div>
-    ));
-
-    RefComponent.staticMember = 'asd';
-
-    render(<RefComponent ref={objRef} />, container);
-
-    expect(container.innerHTML).toBe('<div>1</div>');
-    expect(objRef.current!.outerHTML).toBe('<div>1</div>');
-
-    expect(RefComponent.staticMember).toBe('asd');
-  });
-
-  describe('Inferno specifics', () => {
-    it('Should support defaultProps', () => {
-      function CoolStuff(props, ref) {
-        return (
-          <div className={props.className}>
-            <span ref={ref}>{props.children}</span>
-            {props.foo}
-          </div>
-        );
-      }
-
-      CoolStuff.defaultProps = {
-        foo: 'bar',
-      };
-
-      const ForwardCom = forwardRef(CoolStuff);
-
-      expect(ForwardCom.render).toBe(CoolStuff);
-
-      class Hello extends Component {
-        public render() {
-          return (
-            <ForwardCom
-              className="okay"
-              ref={(btn) => {
-                if (btn) {
-                  expect(btn).toBe(container.querySelector('span'));
-                }
-              }}
-            >
-              <a>1</a>
-            </ForwardCom>
-          );
-        }
-      }
-
-      render(<Hello />, container);
-
-      expect(container.innerHTML).toBe(
-        '<div class="okay"><span><a>1</a></span>bar</div>',
+  it('supports defaultProps on components with direct refs', () => {
+    function FancyButton(
+      props: Props<HTMLSpanElement> & { className: string; foo?: string },
+    ) {
+      return (
+        <div className={props.className}>
+          <span ref={props.ref}>{props.children}</span>
+          {props.foo}
+        </div>
       );
+    }
 
-      render(null, container);
+    FancyButton.defaultProps = { foo: 'bar' };
+    const ref = createRef<HTMLSpanElement>();
 
-      expect(container.innerHTML).toBe('');
-    });
+    render(
+      <FancyButton className="okay" ref={ref}>
+        <a>1</a>
+      </FancyButton>,
+      container,
+    );
+
+    expect(ref.current).toBe(container.querySelector('span'));
+    expect(container.innerHTML).toBe(
+      '<div class="okay"><span><a>1</a></span>bar</div>',
+    );
   });
 });

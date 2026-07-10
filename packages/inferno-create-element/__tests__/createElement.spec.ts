@@ -1,9 +1,9 @@
 import {
   Component,
   createRef,
-  forwardRef,
   Fragment,
   type Inferno,
+  type Props,
   type RefObject,
   render,
 } from 'inferno';
@@ -199,17 +199,12 @@ describe('CreateElement (non-JSX)', () => {
   });
 
   it('Should be possible to forward createRef', () => {
-    // TODO: Investigate how these refs should be typed
-    const FancyButton = forwardRef<HTMLButtonElement, { children?: any }>(
-      (props, ref: any) =>
-        createElement(
-          'button',
-          { ref, className: 'FancyButton' },
-          props.children,
-        ),
-    );
-
-    expect(FancyButton.render).toBeDefined();
+    const FancyButton = (props: Props<HTMLButtonElement>) =>
+      createElement(
+        'button',
+        { ref: props.ref, className: 'FancyButton' } as any,
+        props.children,
+      );
 
     class Hello extends Component {
       btn: RefObject<HTMLButtonElement>;

@@ -4,7 +4,6 @@ import {
   createFragment,
   createVNode,
   getFlagsForElementVnode,
-  type ForwardRef,
   type Inferno,
   type Key,
   type MemoizedComponent,
@@ -23,7 +22,6 @@ export function createElement<P>(
   type:
     | string
     | Inferno.ComponentClass<P>
-    | ForwardRef<P, any>
     | MemoizedComponent<P>
     | Inferno.StatelessComponent<P>
     | typeof Component<P, any>,
@@ -33,12 +31,12 @@ export function createElement<P>(
   if (process.env.NODE_ENV !== 'production') {
     if (isInvalid(type)) {
       throw new Error(
-        'Inferno Error: createElement() name parameter cannot be undefined, null, false or true, It must be a string, class, function, memo or forwardRef.',
+        'Inferno Error: createElement() name parameter cannot be undefined, null, false or true. It must be a string, class, function or memo.',
       );
     }
   }
   let definedChildren: any;
-  let ref: any = null;
+  let ref: any;
   let key: Key = null;
   let className: string | null = null;
   let flags: VNodeFlags;

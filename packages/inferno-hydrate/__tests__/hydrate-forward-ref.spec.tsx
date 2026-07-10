@@ -1,7 +1,13 @@
-import { Component, createRef, forwardRef, RefObject, render } from 'inferno';
+import {
+  Component,
+  createRef,
+  type Props,
+  type RefObject,
+  render,
+} from 'inferno';
 import { hydrate } from 'inferno-hydrate';
 
-describe('Hydrate - Forward Ref', () => {
+describe('Hydrate - direct ref props', () => {
   let container;
 
   beforeEach(function () {
@@ -16,16 +22,14 @@ describe('Hydrate - Forward Ref', () => {
   });
 
   it('Should be possible to forward createRef', () => {
-    const FancyButton = forwardRef((props, ref) => (
-      <button ref={ref} className="FancyButton">
+    const FancyButton = (props: Props<HTMLButtonElement>) => (
+      <button ref={props.ref} className="FancyButton">
         {props.children}
       </button>
-    ));
-
-    expect(FancyButton.render).toBeDefined();
+    );
 
     class Hello extends Component {
-      private readonly btn: RefObject<Element>;
+      private readonly btn: RefObject<HTMLButtonElement>;
 
       constructor(props) {
         super(props);
@@ -53,13 +57,11 @@ describe('Hydrate - Forward Ref', () => {
   });
 
   it('Should be possible to forward callback ref', () => {
-    const FancyButton = forwardRef((props, ref) => (
-      <button ref={ref} className="FancyButton">
+    const FancyButton = (props: Props<HTMLButtonElement>) => (
+      <button ref={props.ref} className="FancyButton">
         {props.children}
       </button>
-    ));
-
-    expect(FancyButton.render).toBeDefined();
+    );
 
     class Hello extends Component {
       render() {
@@ -90,18 +92,16 @@ describe('Hydrate - Forward Ref', () => {
     expect(container.innerHTML).toBe('');
   });
 
-  it('Should be possible to patch forwardRef component', () => {
-    const FancyButton = forwardRef((props, ref) => {
+  it('Should be possible to patch a component with a ref prop', () => {
+    const FancyButton = (props: Props<HTMLButtonElement>) => {
       return (
-        <button ref={ref} className="FancyButton">
+        <button ref={props.ref} className="FancyButton">
           {props.children}
         </button>
       );
-    });
+    };
 
-    expect(FancyButton.render).toBeDefined();
-
-    let firstVal = null;
+    let firstVal: HTMLButtonElement | null = null;
 
     container.innerHTML = '<button class="FancyButton">Click me!</button>';
 
@@ -121,7 +121,7 @@ describe('Hydrate - Forward Ref', () => {
     );
     expect(firstVal).not.toBe(null);
 
-    let secondVal = null;
+    let secondVal: HTMLButtonElement | null = null;
 
     render(
       <FancyButton

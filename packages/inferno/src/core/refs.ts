@@ -1,35 +1,11 @@
-import { isFunction, isNullOrUndef, warning } from 'inferno-shared';
+import { isFunction, isNullOrUndef } from 'inferno-shared';
 import { safeCall1 } from '../DOM/utils/common';
-import type { ForwardRef, InfernoNode, Ref, RefObject } from './types';
+import type { RefObject } from './types';
 
 export function createRef<T = Element>(): RefObject<T> {
   return {
     current: null,
   };
-}
-
-// TODO: Make this return value typed
-export function forwardRef<T = any, P = any>(
-  render: (
-    props: Readonly<{ children?: InfernoNode }> & Readonly<P>,
-    ref: Ref<T> | RefObject<T> | null,
-  ) => InfernoNode,
-): ForwardRef<P, T> {
-  if (process.env.NODE_ENV !== 'production') {
-    if (!isFunction(render)) {
-      warning(
-        `forwardRef requires a render function but was given ${
-          render === null ? 'null' : typeof render
-        }.`,
-      );
-
-      return undefined as any;
-    }
-  }
-
-  return {
-    render,
-  } as ForwardRef<P, T>;
 }
 
 export function unmountRef(ref): void {
