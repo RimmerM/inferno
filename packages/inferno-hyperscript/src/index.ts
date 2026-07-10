@@ -99,7 +99,11 @@ export function h(
     } else if (prop === 'key') {
       key = _props[prop];
     } else if (prop === 'ref') {
-      ref = _props[prop];
+      if (isElement) {
+        ref = _props[prop];
+      } else {
+        newProps.ref = _props[prop];
+      }
     } else if (prop === 'children') {
       children = _props[prop];
     } else {

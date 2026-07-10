@@ -162,6 +162,15 @@ export function createComponentVNode<P>(
       componentProps.ref = ref;
     }
     ref = null;
+  } else if (
+    flags & VNodeFlags.ComponentClass &&
+    !isNullOrUndef(componentProps) &&
+    componentProps.ref !== void 0
+  ) {
+    if (ref === void 0) {
+      ref = componentProps.ref;
+    }
+    componentProps.ref = undefined;
   }
 
   const vNode = new V(

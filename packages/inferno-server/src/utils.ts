@@ -1,11 +1,4 @@
-import {
-  _CFS,
-  _RFCH,
-  _SFCS,
-  EMPTY_OBJ,
-  type InfernoNode,
-  type VNode,
-} from 'inferno';
+import { _RFCH, EMPTY_OBJ, type InfernoNode, type VNode } from 'inferno';
 import { VNodeFlags } from 'inferno-vnode-flags';
 
 const rxUnescaped = /["'&<>]/;
@@ -130,19 +123,12 @@ export function createDerivedState(
 }
 
 export function renderFunctionalComponent(vNode: VNode, context): InfernoNode {
-  const component = vNode.$H || _SFCS(vNode, _CFS(vNode, context, false));
   const props = vNode.props || EMPTY_OBJ;
   const type = vNode.type;
 
-  component.isServer = true;
-  component.context = context;
-  component.vNode = vNode;
-
-  return _RFCH(component, () => {
-    if (vNode.flags & VNodeFlags.Memo) {
-      return type.render(props, context);
-    }
-
-    return type(props, context);
-  });
+  return _RFCH(vNode, context, false, null, true, () =>
+    vNode.flags & VNodeFlags.Memo
+      ? type.render(props, context)
+      : type(props, context),
+  );
 }

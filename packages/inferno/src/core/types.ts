@@ -192,7 +192,7 @@ export type Key = string | number | undefined | null;
 type CrossOrigin = 'anonymous' | 'use-credentials' | '' | null | undefined;
 
 export interface VNode {
-  $H?: FunctionalComponentState;
+  $H?: FunctionalComponentState | null;
   children: InfernoNode;
   childFlags: ChildFlags;
   dom: Element | null;

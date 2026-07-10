@@ -1,53 +1,17 @@
 import {
-  _HI as normalizeRoot,
-  createComponentVNode,
   type InfernoNode,
-  render,
+  rerender,
   useLayoutEffect,
-  type VNode,
+  useRef,
+  useState,
 } from 'inferno';
 import { Reaction } from 'mobx';
 import { throwError, warning } from 'inferno-shared';
-import { VNodeFlags } from 'inferno-vnode-flags';
 
 type Render = (
   properties?: any,
   context?: Record<string, unknown>,
 ) => InfernoNode;
-
-interface InnerProperties {
-  readonly context: unknown;
-  readonly dispose: () => void;
-  readonly props: unknown;
-  readonly self: VNode;
-  readonly track: (f: () => void) => void;
-}
-
-function innerVNode<T>(
-  type: (p: InnerProperties) => T,
-  properties: InnerProperties,
-): VNode {
-  if (process.env.NODE_ENV !== 'production') {
-    Object.freeze(properties);
-  }
-  return createComponentVNode(
-    VNodeFlags.ComponentFunction,
-    type,
-    properties,
-    undefined,
-  );
-}
-
-function makeProxy(target: VNode): { $V: InfernoNode } {
-  return {
-    get $V() {
-      return target.children;
-    },
-    set $V(value) {
-      target.children = value;
-    },
-  };
-}
 
 export function observerWrap<T extends Render>(base: T): typeof base {
   if (process.env.NODE_ENV !== 'production') {
@@ -66,50 +30,35 @@ export function observerWrap<T extends Render>(base: T): typeof base {
       );
     }
   }
-  function tracked({
-    context,
-    dispose,
-    props,
-    self,
-    track,
-  }: InnerProperties): ReturnType<typeof base> {
+  function wrapper(this: unknown, props, context): ReturnType<typeof base> {
+    const [, setVersion] = useState(0);
+    const reactionRef = useRef<Reaction>();
+    let reaction = reactionRef.current;
+
+    if (!reaction) {
+      reaction = reactionRef.current = new Reaction(base.name, () => {
+        setVersion((version) => version + 1);
+        rerender();
+      });
+    }
+
+    useLayoutEffect(() => () => reaction!.dispose(), [reaction]);
+
     let result;
     let caught;
-    track(() => {
+    reaction.track(() => {
       try {
-        result = base.call(self, props, context);
+        result = base.call(this, props, context);
       } catch (error) {
         caught = error;
       }
     });
+
     if (caught) {
       throw caught;
     }
-    useLayoutEffect(() => dispose, [dispose]);
-    return result;
-  }
-  function wrapper(this: VNode, props, context): VNode {
-    // eslint-disable-next-line prefer-const
-    let proxy;
-    const reaction = new Reaction(base.name, () => {
-      let next;
-      reaction.track(() => {
-        next = normalizeRoot(base.call(this, props, context));
-      });
-      if (next) {
-        // indirectly call patch as inferno does not export patch
-        render(next, proxy, null, context);
-      }
-    });
-    const inner = innerVNode(tracked, {
-      context,
-      dispose: reaction.dispose.bind(reaction),
-      props,
-      self: this,
-      track: reaction.track.bind(reaction),
-    });
-    proxy = makeProxy(inner);
-    return inner;
+
+    return result as ReturnType<typeof base>;
   }
   wrapper.defaultProps = (base as any).defaultProps;
   if (process.env.NODE_ENV !== 'production') {

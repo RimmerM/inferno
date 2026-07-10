@@ -435,6 +435,84 @@ describe('Component lifecycle (JSX)', () => {
       return store;
     }
 
+    it('does not allocate hook state for hookless components', () => {
+      function Hookless() {
+        return <div>hookless</div>;
+      }
+
+      const input = <Hookless />;
+
+      render(input, _container);
+
+      expect(input.$H).toBe(null);
+      expect(_container.innerHTML).toBe('<div>hookless</div>');
+    });
+
+    it('allocates hook state lazily on the first hook call', () => {
+      function Hooked() {
+        useState(0);
+        return <div>hooked</div>;
+      }
+
+      const input = <Hooked />;
+
+      render(input, _container);
+
+      expect(input.$H).toBeDefined();
+      expect(input.$H!.pendingEffects).toBe(null);
+      expect(input.$H!.pendingLayoutEffects).toBe(null);
+    });
+
+    it('retains hook-order validation after a hookless render', () => {
+      function ConditionalHook(props: { enabled: boolean }) {
+        if (props.enabled) {
+          useState(0);
+        }
+
+        return <div />;
+      }
+
+      render(<ConditionalHook enabled={false} />, _container);
+
+      expect(() =>
+        render(<ConditionalHook enabled={true} />, _container),
+      ).toThrow('hooks must be called in the same order');
+    });
+
+    it('flushes class and function updates in the same scheduled batch', async () => {
+      let classComponent: ClassCounter | null = null;
+      let setFunctionValue: ((value: number) => void) | null = null;
+
+      class ClassCounter extends Component<unknown, { value: number }> {
+        public state = { value: 0 };
+
+        public render() {
+          return <span>{this.state.value}</span>;
+        }
+      }
+
+      function FunctionCounter() {
+        const [value, setValue] = useState(0);
+        setFunctionValue = setValue;
+        return <span>{value}</span>;
+      }
+
+      render(
+        <div>
+          <ClassCounter ref={(instance) => (classComponent = instance)} />
+          <FunctionCounter />
+        </div>,
+        _container,
+      );
+
+      setFunctionValue!(1);
+      classComponent!.setState({ value: 1 });
+
+      expect(_container.textContent).toBe('00');
+      await Promise.resolve();
+      expect(_container.textContent).toBe('11');
+    });
+
     it('should update state from useState', () => {
       let setValue: (value: number | ((lastValue: number) => number)) => void;
 

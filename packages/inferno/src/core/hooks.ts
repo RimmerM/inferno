@@ -1,5 +1,9 @@
 import type { ContextObject, InfernoNode, RefObject, VNode } from './types';
 import { isFunction, isNullOrUndef, throwError } from 'inferno-shared';
+import {
+  registerFunctionalUpdateQueue,
+  scheduleUpdate,
+} from './scheduler';
 
 type HookAction<S> = S | ((lastState: S) => S);
 type Reducer<S, A> = (lastState: S, action: A) => S;
@@ -11,7 +15,7 @@ type SnapshotGetter<T> = () => T;
 type StoreSelector<S, T> = (snapshot: S) => T;
 type StoreSelectionComparator<T> = (lastSelection: T, nextSelection: T) => boolean;
 
-const nextTick = Promise.resolve().then.bind(Promise.resolve());
+const resolvedPromise = Promise.resolve();
 
 const enum HookType {
   State,
@@ -29,7 +33,7 @@ const enum HookType {
 interface Hook {
   cleanup?: EffectCleanup;
   create?: EffectCallback;
-  deps?: unknown[] | null;
+  deps?: readonly unknown[] | null;
   dispatch?: (value: unknown) => void;
   getSnapshot?: SnapshotGetter<unknown>;
   isEqual?: StoreSelectionComparator<unknown>;
@@ -38,7 +42,7 @@ interface Hook {
   selector?: StoreSelector<unknown, unknown>;
   snapshot?: unknown;
   subscribe?: StoreSubscribe;
-  type: HookType;
+  type?: HookType;
   value?: unknown;
 }
 
@@ -51,21 +55,26 @@ export interface AnimationHookCallbacks {
 export interface FunctionalComponentState {
   animation: AnimationHookCallbacks | null;
   context: ContextObject;
-  hookCount: number;
-  hooks: Hook[];
-  input: VNode | null;
+  hookCount?: number;
+  hooks: Hook[] | null;
   isServer: boolean;
   isSVG: boolean;
-  pendingEffects: Hook[];
-  pendingLayoutEffects: Hook[];
+  parentDOM: Element | null;
+  pendingEffects: Hook[] | null;
+  pendingLayoutEffects: Hook[] | null;
   queued: boolean;
-  renderCount: number;
+  renderCount?: number;
   unmounted: boolean;
   vNode: VNode;
 }
 
 let currentComponent: FunctionalComponentState | null = null;
+let currentContext: ContextObject | null = null;
 let currentHookIndex = 0;
+let currentIsServer = false;
+let currentIsSVG = false;
+let currentParentDOM: Element | null = null;
+let currentVNode: VNode | null = null;
 let functionalComponentUpdate:
   | ((component: FunctionalComponentState) => void)
   | null = null;
@@ -75,7 +84,6 @@ const pendingPassiveEffects: Array<{
   component: FunctionalComponentState;
   effects: Hook[];
 }> = [];
-let functionalQueuePending = false;
 let passiveEffectsPending = false;
 
 function invalidHookCall(): never {
@@ -84,23 +92,46 @@ function invalidHookCall(): never {
 }
 
 function getCurrentComponent(): FunctionalComponentState {
-  if (isNullOrUndef(currentComponent)) {
+  if (isNullOrUndef(currentVNode)) {
     invalidHookCall();
+  }
+
+  if (isNullOrUndef(currentComponent)) {
+    const previouslyRenderedWithoutHooks = currentVNode.$H === null;
+
+    currentComponent = setFunctionalComponentState(
+      currentVNode,
+      createFunctionalComponentState(
+        currentVNode,
+        currentContext!,
+        currentIsSVG,
+        currentParentDOM,
+        currentIsServer,
+      ),
+    );
+
+    if (
+      process.env.NODE_ENV !== 'production' &&
+      previouslyRenderedWithoutHooks
+    ) {
+      currentComponent.renderCount = 1;
+    }
   }
 
   return currentComponent;
 }
 
-function getHook(type: HookType): Hook {
-  const component = getCurrentComponent();
-  const hooks = component.hooks;
+function getHook(component: FunctionalComponentState, type: HookType): Hook {
+  const hooks = component.hooks || (component.hooks = []);
   const index = currentHookIndex++;
   let hook = hooks[index];
 
   if (isNullOrUndef(hook)) {
-    hook = hooks[index] = {
-      type,
-    };
+    hook = hooks[index] = {};
+
+    if (process.env.NODE_ENV !== 'production') {
+      hook.type = type;
+    }
   } else if (process.env.NODE_ENV !== 'production' && hook.type !== type) {
     throwError('hooks must be called in the same order on every render.');
   }
@@ -108,7 +139,10 @@ function getHook(type: HookType): Hook {
   return hook;
 }
 
-function depsChanged(lastDeps: unknown[] | null | undefined, nextDeps): boolean {
+function depsChanged(
+  lastDeps: readonly unknown[] | null | undefined,
+  nextDeps: readonly unknown[] | undefined,
+): boolean {
   if (isNullOrUndef(nextDeps) || isNullOrUndef(lastDeps)) {
     return true;
   }
@@ -138,10 +172,7 @@ function queueFunctionalComponentUpdate(
     functionalComponentQueue.push(component);
   }
 
-  if (!functionalQueuePending) {
-    functionalQueuePending = true;
-    nextTick(rerenderFunctionalComponents);
-  }
+  scheduleUpdate();
 }
 
 function updateHookState<S>(
@@ -237,7 +268,7 @@ function schedulePassiveEffects(
 
   if (!passiveEffectsPending) {
     passiveEffectsPending = true;
-    nextTick(flushPassiveEffects);
+    resolvedPromise.then(flushPassiveEffects);
   }
 }
 
@@ -261,6 +292,27 @@ function assignRef(
   }
 }
 
+function queueEffect(
+  component: FunctionalComponentState,
+  hook: Hook,
+  layout: boolean,
+): void {
+  let effects = layout
+    ? component.pendingLayoutEffects
+    : component.pendingEffects;
+
+  if (isNullOrUndef(effects)) {
+    effects = [];
+    if (layout) {
+      component.pendingLayoutEffects = effects;
+    } else {
+      component.pendingEffects = effects;
+    }
+  }
+
+  effects.push(hook);
+}
+
 export function setFunctionalComponentUpdate(
   update: (component: FunctionalComponentState) => void,
 ): void {
@@ -271,28 +323,40 @@ export function createFunctionalComponentState(
   vNode: VNode,
   context: ContextObject,
   isSVG: boolean,
+  parentDOM: Element | null = null,
+  isServer = false,
 ): FunctionalComponentState {
-  return {
+  const component: FunctionalComponentState = {
     animation: null,
     context,
-    hookCount: 0,
-    hooks: [],
-    input: null,
-    isServer: false,
+    hooks: null,
+    isServer,
     isSVG,
-    pendingEffects: [],
-    pendingLayoutEffects: [],
+    parentDOM,
+    pendingEffects: null,
+    pendingLayoutEffects: null,
     queued: false,
-    renderCount: 0,
     unmounted: false,
     vNode,
   };
+
+  if (process.env.NODE_ENV !== 'production') {
+    component.hookCount = 0;
+    component.renderCount = 0;
+  }
+
+  return component;
 }
 
 export function setFunctionalComponentState(
   vNode: VNode,
   component: FunctionalComponentState,
-): FunctionalComponentState {
+): FunctionalComponentState;
+export function setFunctionalComponentState(vNode: VNode, component: null): null;
+export function setFunctionalComponentState(
+  vNode: VNode,
+  component: FunctionalComponentState | null,
+): FunctionalComponentState | null {
   Object.defineProperty(vNode, '$H', {
     configurable: true,
     value: component,
@@ -302,50 +366,41 @@ export function setFunctionalComponentState(
   return component;
 }
 
-export function prepareFunctionalComponentHooks(
+function prepareFunctionalComponentHooks(
   component: FunctionalComponentState,
-  vNode: VNode,
-  context: ContextObject,
-  isSVG: boolean,
 ): void {
   component.animation = null;
-  component.context = context;
-  component.isSVG = isSVG;
-  component.pendingEffects = [];
-  component.pendingLayoutEffects = [];
-  component.vNode = vNode;
-  component.hookCount = component.hooks.length;
-  currentComponent = component;
-  currentHookIndex = 0;
+  component.pendingEffects = null;
+  component.pendingLayoutEffects = null;
+
+  if (process.env.NODE_ENV !== 'production') {
+    component.hookCount = component.hooks?.length || 0;
+  }
 }
 
-export function finishFunctionalComponentHooks(
+function finishFunctionalComponentHooks(
   component: FunctionalComponentState,
 ): void {
   if (
     process.env.NODE_ENV !== 'production' &&
-    component.renderCount > 0 &&
+    component.renderCount! > 0 &&
     currentHookIndex !== component.hookCount
   ) {
     throwError('hooks must be called in the same order on every render.');
   }
 
-  component.renderCount++;
-  currentComponent = null;
-  currentHookIndex = 0;
-}
-
-export function resetFunctionalComponentHooks(): void {
-  currentComponent = null;
-  currentHookIndex = 0;
+  if (process.env.NODE_ENV !== 'production') {
+    component.renderCount!++;
+  }
 }
 
 export function commitFunctionalComponentEffects(
   component: FunctionalComponentState,
   lifecycle: Array<() => void>,
 ): void {
-  if (component.pendingLayoutEffects.length > 0) {
+  if (!isNullOrUndef(component.pendingLayoutEffects)) {
     const effects = component.pendingLayoutEffects;
+    component.pendingLayoutEffects = null;
 
     lifecycle.push(() => {
       for (let i = 0; i < effects.length; i++) {
@@ -354,8 +409,9 @@ export function commitFunctionalComponentEffects(
     });
   }
 
-  if (component.pendingEffects.length > 0) {
+  if (!isNullOrUndef(component.pendingEffects)) {
     const effects = component.pendingEffects;
+    component.pendingEffects = null;
 
     lifecycle.push(() => {
       schedulePassiveEffects(component, effects);
@@ -368,14 +424,18 @@ export function unmountFunctionalComponentHooks(
 ): void {
   component.unmounted = true;
 
-  for (let i = 0; i < component.hooks.length; i++) {
-    cleanupHook(component.hooks[i]);
+  const hooks = component.hooks;
+
+  if (isNullOrUndef(hooks)) {
+    return;
+  }
+
+  for (let i = 0; i < hooks.length; i++) {
+    cleanupHook(hooks[i]);
   }
 }
 
-export function rerenderFunctionalComponents(): void {
-  functionalQueuePending = false;
-
+function rerenderFunctionalComponents(): void {
   let index = 0;
 
   try {
@@ -397,11 +457,16 @@ export function rerenderFunctionalComponents(): void {
   }
 }
 
+registerFunctionalUpdateQueue({
+  flush: rerenderFunctionalComponents,
+  hasPending: () => functionalComponentQueue.length > 0,
+});
+
 export function useState<S>(
   initialState: S | (() => S),
 ): [S, (value: HookAction<S>) => void] {
   const component = getCurrentComponent();
-  const hook = getHook(HookType.State);
+  const hook = getHook(component, HookType.State);
 
   if (!('value' in hook)) {
     hook.value = isFunction(initialState)
@@ -425,7 +490,7 @@ export function useReducer<S, A, I = S>(
   init?: ReducerInitializer<I, S>,
 ): [S, (action: A) => void] {
   const component = getCurrentComponent();
-  const hook = getHook(HookType.Reducer);
+  const hook = getHook(component, HookType.Reducer);
 
   if (!('value' in hook)) {
     hook.value = isFunction(init) ? init(initialArg) : (initialArg as unknown);
@@ -444,8 +509,11 @@ export function useReducer<S, A, I = S>(
   return [hook.value as S, hook.dispatch as (action: A) => void];
 }
 
-export function useRef<T>(initialValue: T): { current: T } {
-  const hook = getHook(HookType.Ref);
+export function useRef<T = undefined>(): { current: T | undefined };
+export function useRef<T>(initialValue: T): { current: T };
+export function useRef<T>(initialValue?: T): { current: T | undefined } {
+  const component = getCurrentComponent();
+  const hook = getHook(component, HookType.Ref);
 
   if (!('value' in hook)) {
     hook.value = {
@@ -453,36 +521,40 @@ export function useRef<T>(initialValue: T): { current: T } {
     };
   }
 
-  return hook.value as { current: T };
+  return hook.value as { current: T | undefined };
 }
 
-export function useEffect(create: EffectCallback, deps?: unknown[]): void {
+export function useEffect(
+  create: EffectCallback,
+  deps?: readonly unknown[],
+): void {
   const component = getCurrentComponent();
-  const hook = getHook(HookType.Effect);
+  const hook = getHook(component, HookType.Effect);
 
   if (depsChanged(hook.deps, deps)) {
     hook.create = create;
     hook.deps = isNullOrUndef(deps) ? null : deps;
-    component.pendingEffects.push(hook);
+    queueEffect(component, hook, false);
   }
 }
 
 export function useLayoutEffect(
   create: EffectCallback,
-  deps?: unknown[],
+  deps?: readonly unknown[],
 ): void {
   const component = getCurrentComponent();
-  const hook = getHook(HookType.LayoutEffect);
+  const hook = getHook(component, HookType.LayoutEffect);
 
   if (depsChanged(hook.deps, deps)) {
     hook.create = create;
     hook.deps = isNullOrUndef(deps) ? null : deps;
-    component.pendingLayoutEffects.push(hook);
+    queueEffect(component, hook, true);
   }
 }
 
-export function useMemo<T>(factory: () => T, deps?: unknown[]): T {
-  const hook = getHook(HookType.Memo);
+export function useMemo<T>(factory: () => T, deps?: readonly unknown[]): T {
+  const component = getCurrentComponent();
+  const hook = getHook(component, HookType.Memo);
 
   if (!('value' in hook) || depsChanged(hook.deps, deps)) {
     hook.value = factory();
@@ -494,7 +566,7 @@ export function useMemo<T>(factory: () => T, deps?: unknown[]): T {
 
 export function useCallback<T extends (...args: any[]) => any>(
   callback: T,
-  deps?: unknown[],
+  deps?: readonly unknown[],
 ): T {
   return useMemo(() => callback, deps);
 }
@@ -505,7 +577,7 @@ export function useSyncExternalStore<T>(
   getServerSnapshot?: SnapshotGetter<T>,
 ): T {
   const component = getCurrentComponent();
-  const hook = getHook(HookType.ExternalStore);
+  const hook = getHook(component, HookType.ExternalStore);
   const snapshot =
     component.isServer && isFunction(getServerSnapshot)
       ? getServerSnapshot()
@@ -533,7 +605,7 @@ export function useSyncExternalStore<T>(
 
       return unsubscribe;
     };
-    component.pendingLayoutEffects.push(hook);
+    queueEffect(component, hook, true);
   }
 
   return hook.value as T;
@@ -547,7 +619,7 @@ export function useSyncExternalStoreWithSelector<S, T>(
   isEqual?: StoreSelectionComparator<T>,
 ): T {
   const component = getCurrentComponent();
-  const hook = getHook(HookType.ExternalStoreWithSelector);
+  const hook = getHook(component, HookType.ExternalStoreWithSelector);
   const snapshot =
     component.isServer && isFunction(getServerSnapshot)
       ? getServerSnapshot()
@@ -592,7 +664,7 @@ export function useSyncExternalStoreWithSelector<S, T>(
 
       return unsubscribe;
     };
-    component.pendingLayoutEffects.push(hook);
+    queueEffect(component, hook, true);
   }
 
   return hook.value as T;
@@ -601,10 +673,10 @@ export function useSyncExternalStoreWithSelector<S, T>(
 export function useImperativeHandle<T>(
   ref: RefObject<T> | ((value: T | null) => void) | null | undefined,
   create: () => T,
-  deps?: unknown[],
+  deps?: readonly unknown[],
 ): void {
   const component = getCurrentComponent();
-  const hook = getHook(HookType.ImperativeHandle);
+  const hook = getHook(component, HookType.ImperativeHandle);
   const lastRef = hook.ref;
 
   hook.ref = isNullOrUndef(ref)
@@ -626,31 +698,68 @@ export function useImperativeHandle<T>(
       };
     };
     hook.deps = isNullOrUndef(deps) ? null : deps;
-    component.pendingLayoutEffects.push(hook);
+    queueEffect(component, hook, true);
   }
 }
 
 export function useAnimation(callbacks: AnimationHookCallbacks): void {
   const component = getCurrentComponent();
 
-  getHook(HookType.Animation).value = callbacks;
+  getHook(component, HookType.Animation).value = callbacks;
   component.animation = callbacks;
 }
 
 export function renderFunctionalComponentWithHooks(
-  component: FunctionalComponentState,
+  vNode: VNode,
+  context: ContextObject,
+  isSVG: boolean,
+  parentDOM: Element | null,
+  isServer: boolean,
   render: () => InfernoNode,
 ): InfernoNode {
-  prepareFunctionalComponentHooks(
-    component,
-    component.vNode,
-    component.context,
-    component.isSVG,
-  );
+  const lastComponent = currentComponent;
+  const lastContext = currentContext;
+  const lastHookIndex = currentHookIndex;
+  const lastIsServer = currentIsServer;
+  const lastIsSVG = currentIsSVG;
+  const lastParentDOM = currentParentDOM;
+  const lastVNode = currentVNode;
+  const component = vNode.$H;
+
+  currentComponent = component || null;
+  currentContext = context;
+  currentHookIndex = 0;
+  currentIsServer = isServer;
+  currentIsSVG = isSVG;
+  currentParentDOM = parentDOM;
+  currentVNode = vNode;
+
+  if (!isNullOrUndef(component)) {
+    component.context = context;
+    component.isServer = isServer;
+    component.isSVG = isSVG;
+    component.parentDOM = parentDOM;
+    component.vNode = vNode;
+    prepareFunctionalComponentHooks(component);
+  }
 
   try {
     return render();
   } finally {
-    finishFunctionalComponentHooks(component);
+    try {
+      if (!isNullOrUndef(currentComponent)) {
+        finishFunctionalComponentHooks(currentComponent);
+      } else if (process.env.NODE_ENV !== 'production') {
+        setFunctionalComponentState(vNode, null);
+      }
+    } finally {
+      currentComponent = lastComponent;
+      currentContext = lastContext;
+      currentHookIndex = lastHookIndex;
+      currentIsServer = lastIsServer;
+      currentIsSVG = lastIsSVG;
+      currentParentDOM = lastParentDOM;
+      currentVNode = lastVNode;
+    }
   }
 }

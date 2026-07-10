@@ -9,12 +9,14 @@ import {
   findDOMFromVNode,
   renderCheck,
 } from '../DOM/utils/common';
-import { rerenderFunctionalComponents } from './hooks';
+import {
+  flushUpdates,
+  hasScheduledUpdates,
+  registerClassUpdateQueue,
+  scheduleUpdate,
+} from './scheduler';
 
 const COMPONENTS_QUEUE: Array<Component<any, any>> = [];
-
-const nextTick = Promise.resolve().then.bind(Promise.resolve());
-let microTaskPending = false;
 
 function queueStateChanges<P, S>(
   component: Component<P, S>,
@@ -42,7 +44,7 @@ function queueStateChanges<P, S>(
 
   if (!component.$BR) {
     if (!renderCheck.v) {
-      if (COMPONENTS_QUEUE.length === 0) {
+      if (COMPONENTS_QUEUE.length === 0 && !hasScheduledUpdates()) {
         applyState(component, force);
         if (isFunction(callback)) {
           callback.call(component);
@@ -56,10 +58,7 @@ function queueStateChanges<P, S>(
     if (force) {
       component.$F = true;
     }
-    if (!microTaskPending) {
-      microTaskPending = true;
-      nextTick(rerender);
-    }
+    scheduleUpdate();
     if (isFunction(callback)) {
       let QU = component.$QU;
 
@@ -83,9 +82,8 @@ function callSetStateCallbacks(component): void {
   component.$QU = null;
 }
 
-export function rerender(): void {
+function rerenderClassComponents(): void {
   let component: Component<any, any> | undefined;
-  microTaskPending = false;
 
   while ((component = COMPONENTS_QUEUE.shift())) {
     if (!component.$UN) {
@@ -98,8 +96,15 @@ export function rerender(): void {
       }
     }
   }
+}
 
-  rerenderFunctionalComponents();
+registerClassUpdateQueue({
+  flush: rerenderClassComponents,
+  hasPending: () => COMPONENTS_QUEUE.length > 0,
+});
+
+export function rerender(): void {
+  flushUpdates();
 }
 
 function applyState<P, S>(component: Component<P, S>, force: boolean): void {

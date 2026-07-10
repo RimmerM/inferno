@@ -8,8 +8,25 @@ import {
   linkEvent,
   type Ref,
   render,
+  useEffect,
+  useMemo,
+  useRef,
 } from 'inferno';
 import { ChildFlags, VNodeFlags } from 'inferno-vnode-flags';
+
+function hookTypes(): void {
+  const deps = [1] as const;
+
+  useEffect(() => undefined, deps);
+  useMemo(() => 1, deps);
+
+  const ref = useRef<number>();
+  const value: number | undefined = ref.current;
+
+  expect(value).toBeUndefined();
+}
+
+void hookTypes;
 
 describe('top level context', () => {
   let container;

@@ -90,8 +90,6 @@ export function createElement<P>(
       for (const prop in props) {
         if (prop === 'key') {
           key = props.key;
-        } else if (prop === 'ref') {
-          ref = props.ref;
         } else {
           newProps[prop] = props[prop];
         }

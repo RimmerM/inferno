@@ -334,23 +334,31 @@ export function mountFunctionalComponent(
   lifecycle: Array<() => void>,
   animations: AnimationQueues,
 ): void {
-  const component = setFunctionalComponentState(
-    vNode,
-    createFunctionalComponentState(vNode, context, isSVG),
-  );
+  if (vNode.flags & VNodeFlags.Memo) {
+    setFunctionalComponentState(
+      vNode,
+      createFunctionalComponentState(vNode, context, isSVG, parentDOM),
+    );
+  }
+
   const input = normalizeRoot(
-    renderFunctionalComponentWithHooks(component, () =>
-      renderFunctionalComponent(vNode, context),
+    renderFunctionalComponentWithHooks(
+      vNode,
+      context,
+      isSVG,
+      parentDOM,
+      false,
+      () => renderFunctionalComponent(vNode, context),
     ),
   );
 
-  component.input = input;
   vNode.children = input;
+  const component = vNode.$H;
 
   // If we have a componentDidAppear on this component, we shouldn't allow children to animate so we're passing an dummy animations queue
   let childAnimations = animations;
 
-  if (!isNullOrUndef(component.animation?.onAppear)) {
+  if (!isNullOrUndef(component?.animation?.onAppear)) {
     childAnimations = new AnimationQueues();
   }
 

@@ -799,19 +799,24 @@ function patchFunctionalComponent(
   lifecycle: Array<() => void>,
   animations: AnimationQueues,
 ): void {
-  const component =
-    lastVNode.$H || createFunctionalComponentState(nextVNode, context, isSVG);
-  const lastInput = component.input || lastVNode.children;
+  let component = lastVNode.$H;
+  const lastInput = lastVNode.children;
+
+  if (process.env.NODE_ENV !== 'production' && component === null) {
+    setFunctionalComponentState(nextVNode, null);
+  }
 
   if (
     nextVNode.flags & VNodeFlags.Memo &&
     lastVNode.ref === nextVNode.ref &&
+    !isNullOrUndef(component) &&
     component.context === context &&
     (nextVNode.type.compare || shallowEqualProps)(
       lastVNode.props || EMPTY_OBJ,
       nextVNode.props || EMPTY_OBJ,
     )
   ) {
+    component.parentDOM = parentDOM;
     component.isSVG = isSVG;
     component.unmounted = false;
     component.vNode = nextVNode;
@@ -822,15 +827,32 @@ function patchFunctionalComponent(
     return;
   }
 
-  component.context = context;
-  component.isSVG = isSVG;
-  component.unmounted = false;
-  component.vNode = nextVNode;
-  setFunctionalComponentState(nextVNode, component);
+  if (isNullOrUndef(component) && nextVNode.flags & VNodeFlags.Memo) {
+    component = createFunctionalComponentState(
+      nextVNode,
+      context,
+      isSVG,
+      parentDOM,
+    );
+  }
+
+  if (!isNullOrUndef(component)) {
+    component.context = context;
+    component.isSVG = isSVG;
+    component.parentDOM = parentDOM;
+    component.unmounted = false;
+    component.vNode = nextVNode;
+    setFunctionalComponentState(nextVNode, component);
+  }
 
   const nextInput = normalizeRoot(
-    renderFunctionalComponentWithHooks(component, () =>
-      renderFunctionalComponent(nextVNode, context),
+    renderFunctionalComponentWithHooks(
+      nextVNode,
+      context,
+      isSVG,
+      parentDOM,
+      false,
+      () => renderFunctionalComponent(nextVNode, context),
     ),
   );
 
@@ -845,22 +867,23 @@ function patchFunctionalComponent(
     animations,
   );
 
-  component.input = nextInput;
   nextVNode.children = nextInput;
-  commitFunctionalComponentEffects(component, lifecycle);
+  component = nextVNode.$H;
+
+  if (!isNullOrUndef(component)) {
+    commitFunctionalComponentEffects(component, lifecycle);
+  }
 }
 
 function updateFunctionalComponent(
   component: FunctionalComponentState,
 ): void {
-  const lastInput = component.input;
+  const lastInput = component.vNode.children as VNode;
+  const parentDOM = component.parentDOM;
 
-  if (isNullOrUndef(lastInput)) {
+  if (isNullOrUndef(parentDOM)) {
     return;
   }
-
-  const parentDOM = (findDOMFromVNode(lastInput, true) as Element)
-    .parentNode as Element;
   const lifecycle: Array<() => void> = [];
   const animations: AnimationQueues = new AnimationQueues();
 
@@ -868,8 +891,13 @@ function updateFunctionalComponent(
 
   try {
     const nextInput = normalizeRoot(
-      renderFunctionalComponentWithHooks(component, () =>
-        renderFunctionalComponent(component.vNode, component.context),
+      renderFunctionalComponentWithHooks(
+        component.vNode,
+        component.context,
+        component.isSVG,
+        parentDOM,
+        false,
+        () => renderFunctionalComponent(component.vNode, component.context),
       ),
     );
 
@@ -884,7 +912,6 @@ function updateFunctionalComponent(
       animations,
     );
 
-    component.input = nextInput;
     component.vNode.children = nextInput;
     commitFunctionalComponentEffects(component, lifecycle);
     callAll(lifecycle);
