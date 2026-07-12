@@ -25,7 +25,7 @@ describe('static tree as child nodes', () => {
       public static childContextTypes = {};
 
       public getChildContext() {
-        return {};
+        return [];
       }
 
       public render() {
@@ -95,7 +95,7 @@ describe('static tree as child nodes', () => {
       public static childContextTypes = {};
 
       public getChildContext() {
-        return {};
+        return [];
       }
 
       public render() {

@@ -1,15 +1,23 @@
-import { Component, createComponentVNode, type InfernoNode } from 'inferno';
+import {
+  Component,
+  contextValue,
+  type Context,
+  type ContextOverride,
+  createComponentVNode,
+  type InfernoNode,
+  readContext,
+} from 'inferno';
 import { VNodeFlags } from 'inferno-vnode-flags';
 import { invariant, warning } from './utils';
 import { matchPath } from './matchPath';
 import { isFunction, isNullOrUndef, isUndefined } from 'inferno-shared';
 import type { History, Location } from 'history';
 import type {
-  RouterContext,
   TContextRouter,
   TLoaderData,
   TLoaderProps,
 } from './Router';
+import { routerContext } from './Router';
 
 export interface Match<P extends Record<string, string>> {
   params: P;
@@ -51,17 +59,20 @@ interface RouteState {
 }
 
 class Route extends Component<Partial<IRouteProps>, RouteState> {
-  constructor(props: IRouteProps, context: RouterContext) {
+  constructor(props: IRouteProps, context: Context) {
     super(props, context);
-    const match = this.computeMatch(props, context.router);
+    const match = this.computeMatch(
+      props,
+      readContext(context, routerContext)!,
+    );
     this.state = {
       __loaderData__: match?.loaderData,
       match,
     };
   }
 
-  public getChildContext(): RouterContext {
-    const parentRouter: TContextRouter = this.context.router;
+  public getChildContext(): ContextOverride<TContextRouter | null> {
+    const parentRouter = readContext(this.context, routerContext)!;
     const router: TContextRouter = { ...parentRouter };
 
     router.route = {
@@ -69,9 +80,7 @@ class Route extends Component<Partial<IRouteProps>, RouteState> {
       match: this.state!.match,
     };
 
-    return {
-      router,
-    };
+    return contextValue(routerContext, router);
   }
 
   public computeMatch(
@@ -109,7 +118,7 @@ class Route extends Component<Partial<IRouteProps>, RouteState> {
 
   public componentWillReceiveProps(
     nextProps,
-    nextContext: { router: TContextRouter },
+    nextContext: Context,
   ): void {
     if (process.env.NODE_ENV !== 'production') {
       warning(
@@ -122,7 +131,10 @@ class Route extends Component<Partial<IRouteProps>, RouteState> {
         '<Route> elements should not change from controlled to uncontrolled (or vice versa). You provided a "location" prop initially but omitted it on a subsequent render.',
       );
     }
-    const match = this.computeMatch(nextProps, nextContext.router);
+    const match = this.computeMatch(
+      nextProps,
+      readContext(nextContext, routerContext)!,
+    );
 
     this.setState({
       __loaderData__: match?.loaderData,
@@ -133,11 +145,14 @@ class Route extends Component<Partial<IRouteProps>, RouteState> {
   public render(
     props: IRouteProps,
     state: RouteState,
-    context: { router: TContextRouter },
+    context: Context,
   ): InfernoNode {
     const { match, __loaderData__ } = state;
     const { children, component, render, loader } = props;
-    const { history, route, staticContext } = context.router;
+    const { history, route, staticContext } = readContext(
+      context,
+      routerContext,
+    )!;
     const location = props.location || route.location;
     const renderProps: any = {
       match,

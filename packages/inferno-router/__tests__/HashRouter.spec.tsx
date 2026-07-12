@@ -1,11 +1,11 @@
-import { render } from 'inferno';
-import { HashRouter } from 'inferno-router';
+import { readContext, render } from 'inferno';
+import { HashRouter, routerContext } from 'inferno-router';
 
 describe('A <HashRouter>', () => {
   it('puts history on context.router', () => {
     let history;
     const ContextChecker = (_props, context) => {
-      history = context.router.history;
+      history = readContext(context, routerContext)!.history;
       return null;
     };
 

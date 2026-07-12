@@ -1,7 +1,16 @@
-import { Component, render } from 'inferno';
+import {
+  Component,
+  contextValue,
+  type Context,
+  createContext,
+  readContext,
+  render,
+} from 'inferno';
 import { createElement } from 'inferno-create-element';
 import { streamAsStaticMarkup } from 'inferno-server';
 import concatStream from 'concat-stream';
+
+const HelloContext = createContext('');
 
 describe('SSR Root Creation Streams - (non-JSX)', () => {
   let container;
@@ -27,12 +36,16 @@ describe('SSR Root Creation Streams - (non-JSX)', () => {
   it('should use getChildContext', async () => {
     class TestComponent extends Component {
       getChildContext() {
-        return { hello: 'world' };
+        return contextValue(HelloContext, 'world');
       }
 
       render() {
-        return createElement('a', null, this.context.hello);
+        return createElement(Child);
       }
+    }
+
+    function Child(_props, context: Context) {
+      return createElement('a', null, readContext(context, HelloContext));
     }
 
     await streamPromise(createElement(TestComponent, null)).then(

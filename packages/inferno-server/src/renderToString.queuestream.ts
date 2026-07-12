@@ -1,4 +1,12 @@
-import { EMPTY_OBJ } from 'inferno';
+import {
+  _ACO,
+  _GCC,
+  _GDC,
+  _LC,
+  _RWC,
+  EMPTY_OBJ,
+  type Context,
+} from 'inferno';
 import {
   isArray,
   isFunction,
@@ -24,13 +32,16 @@ import { mergePendingState } from './stream/streamUtils';
 
 export class RenderQueueStream extends Readable {
   public collector: any[] = [Infinity]; // Infinity marks the end of the stream
+  public context: Context;
   public promises: any[] = [];
 
-  constructor(initNode) {
+  constructor(initNode, context?: Context) {
     super();
+    this.context = context || _GDC();
     this.pushQueue = this.pushQueue.bind(this);
     if (initNode) {
-      this.renderVNodeToQueue(initNode, null, null);
+      _LC();
+      this.renderVNodeToQueue(initNode, this.context, null);
     }
   }
 
@@ -106,13 +117,7 @@ export class RenderQueueStream extends Readable {
         const hasNewAPI = Boolean(type.getDerivedStateFromProps);
         instance.$BS = false;
         instance.$SSR = true;
-        let childContext;
-        if (!isUndefined(instance.getChildContext)) {
-          childContext = instance.getChildContext();
-        }
-        if (!isNullOrUndef(childContext)) {
-          context = { ...context, ...childContext };
-        }
+        instance.$CX = context;
         if (instance.props === EMPTY_OBJ) {
           instance.props = props;
         }
@@ -138,11 +143,16 @@ export class RenderQueueStream extends Readable {
                     instance.props = { ...instance.props, ...dataForContext };
                   }
 
-                  const renderOut = instance.render(
-                    instance.props,
-                    instance.state,
-                    instance.context,
+                  const renderOut = _RWC(context, instance, () =>
+                    instance.render(
+                      instance.props,
+                      instance.state,
+                      instance.context,
+                    ),
                   );
+                  const childContext = !isUndefined(instance.getChildContext)
+                    ? _ACO(instance.$CX, instance.getChildContext())
+                    : instance.$CX;
                   if (isInvalid(renderOut)) {
                     this.addToQueue('<!--!-->', promisePosition);
                   } else if (isString(renderOut)) {
@@ -152,7 +162,7 @@ export class RenderQueueStream extends Readable {
                   } else {
                     this.renderVNodeToQueue(
                       renderOut,
-                      instance.context,
+                      childContext,
                       promisePosition,
                     );
                   }
@@ -171,11 +181,16 @@ export class RenderQueueStream extends Readable {
         if (hasNewAPI) {
           instance.state = createDerivedState(instance, props, instance.state);
         }
-        const renderOutput = instance.render(
-          instance.props,
-          instance.state,
-          instance.context,
+        const renderOutput = _RWC(context, instance, () =>
+          instance.render(
+            instance.props,
+            instance.state,
+            instance.context,
+          ),
         );
+        const childContext = !isUndefined(instance.getChildContext)
+          ? _ACO(instance.$CX, instance.getChildContext())
+          : instance.$CX;
 
         if (isInvalid(renderOutput)) {
           this.addToQueue('<!--!-->', position);
@@ -184,7 +199,7 @@ export class RenderQueueStream extends Readable {
         } else if (isNumber(renderOutput)) {
           this.addToQueue(renderOutput + '', position);
         } else {
-          this.renderVNodeToQueue(renderOutput, context, position);
+          this.renderVNodeToQueue(renderOutput, childContext, position);
         }
       } else {
         const renderOutput = renderFunctionalComponent(vNode, context);
@@ -196,7 +211,11 @@ export class RenderQueueStream extends Readable {
         } else if (isNumber(renderOutput)) {
           this.addToQueue(renderOutput + '', position);
         } else {
-          this.renderVNodeToQueue(renderOutput, context, position);
+          this.renderVNodeToQueue(
+            renderOutput,
+            _GCC(vNode, context),
+            position,
+          );
         }
       }
       // If an element
@@ -340,6 +359,9 @@ export class RenderQueueStream extends Readable {
   }
 }
 
-export function streamQueueAsString(node): RenderQueueStream {
-  return new RenderQueueStream(node);
+export function streamQueueAsString(
+  node,
+  context?: Context,
+): RenderQueueStream {
+  return new RenderQueueStream(node, context);
 }

@@ -1,7 +1,8 @@
-import { Component, type InfernoNode } from 'inferno';
+import { Component, type InfernoNode, readContext } from 'inferno';
 import { type Location, parsePath, type Path } from 'history';
 import { combinePath, invariant } from './utils';
 import { isString } from 'inferno-shared';
+import { routerContext } from './Router';
 
 export interface RedirectProps {
   from?: string;
@@ -20,12 +21,12 @@ function getLocationTarget(to): Partial<Path> {
 
 export class Redirect extends Component<RedirectProps, any> {
   public isStatic(): boolean {
-    return Boolean(this.context.router?.staticContext);
+    return Boolean(readContext(this.context, routerContext)?.staticContext);
   }
 
   public componentWillMount(): void {
     invariant(
-      this.context.router,
+      readContext(this.context, routerContext),
       'You should not use <Redirect> outside a <Router>',
     );
 
@@ -58,7 +59,7 @@ export class Redirect extends Component<RedirectProps, any> {
   }
 
   public perform(): void {
-    const { history } = this.context.router;
+    const { history } = readContext(this.context, routerContext)!;
     const { push = false, to } = this.props;
 
     if (push) {

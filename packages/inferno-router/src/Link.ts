@@ -1,8 +1,10 @@
 import {
   createVNode,
+  type Context,
   type Inferno,
   type InfernoMouseEvent, LinkedEvent,
   linkEvent,
+  readContext,
   type VNode,
 } from 'inferno';
 import { ChildFlags, VNodeFlags } from 'inferno-vnode-flags';
@@ -11,6 +13,7 @@ import {isFunction, isString} from 'inferno-shared';
 import type { Location } from 'history';
 import { parsePath } from 'history';
 import { normalizeToLocation, splitLocation } from './locationUtils';
+import { routerContext } from './Router';
 
 const isModifiedEvent = (event: InfernoMouseEvent<any>): boolean =>
   Boolean(event.metaKey || event.altKey || event.ctrlKey || event.shiftKey);
@@ -43,7 +46,7 @@ function handleClick({ props, context }, event: InfernoMouseEvent<any>): void {
   ) {
     event.preventDefault();
 
-    const { history } = context.router;
+    const { history } = readContext(context, routerContext)!;
     const { replace = false, to: toPropIn } = props;
     const { to, state } = splitLocation(normalizeToLocation(toPropIn));
 
@@ -60,14 +63,15 @@ function handleClick({ props, context }, event: InfernoMouseEvent<any>): void {
  */
 export function Link(
   props: ILinkProps & Inferno.LinkHTMLAttributes<HTMLLinkElement>,
-  context,
+  context: Context,
 ): VNode {
   // "replace" is not purpose left out by spreading the properties
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { replace, children, className, to = '', innerRef, ...rest } = props;
-  invariant(context.router, 'You should not use <Link> outside a <Router>');
+  const router = readContext(context, routerContext);
+  invariant(router, 'You should not use <Link> outside a <Router>');
 
-  const href = context.router.history.createHref(
+  const href = router!.history.createHref(
     isString(to) ? parsePath(to) : to,
   );
   const newProps: any = { ...rest };

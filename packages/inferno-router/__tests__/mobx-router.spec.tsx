@@ -1,6 +1,6 @@
-import { Component, render } from 'inferno';
+import { Component, readContext, render } from 'inferno';
 import { inject, observer, Provider } from 'inferno-mobx';
-import { Route, Router } from 'inferno-router';
+import { Route, Router, routerContext } from 'inferno-router';
 import { createMemoryHistory } from 'history';
 import { action, observable } from 'mobx';
 
@@ -148,9 +148,10 @@ describe('Github #1236', () => {
 
         public doSearch(e) {
           e.preventDefault();
+          const router = readContext(this.context, routerContext)!;
           const nextLoc =
-            this.context.router.history.location.pathname + '?q=test';
-          this.context.router.history.push(nextLoc);
+            router.history.location.pathname + '?q=test';
+          router.history.push(nextLoc);
         }
 
         public render({ searchStore: searchStoreIn }: any) {

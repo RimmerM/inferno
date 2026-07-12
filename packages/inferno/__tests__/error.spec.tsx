@@ -218,7 +218,7 @@ describe('Error recovery', () => {
                   throw Error('test');
                 }
 
-                return {};
+                return [];
               }
 
               public render() {
@@ -375,7 +375,7 @@ describe('Error recovery', () => {
                   throw Error('test');
                 }
 
-                return {};
+                return [];
               }
 
               public render() {
@@ -532,7 +532,7 @@ describe('Error recovery', () => {
                   throw Error('test');
                 }
 
-                return {};
+                return [];
               }
 
               public render() {

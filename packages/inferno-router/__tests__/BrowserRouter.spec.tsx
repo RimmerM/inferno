@@ -1,12 +1,12 @@
-import { render } from 'inferno';
-import { BrowserRouter } from 'inferno-router';
+import { readContext, render } from 'inferno';
+import { BrowserRouter, routerContext } from 'inferno-router';
 
 describe('BrowserRouter (jsx)', () => {
   it('puts history on context.router', () => {
     const node = document.createElement('div');
     let history;
     const ContextChecker = (_props, context) => {
-      history = context.router.history;
+      history = readContext(context, routerContext)!.history;
       return null;
     };
 

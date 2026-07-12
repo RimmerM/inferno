@@ -4,6 +4,7 @@ import {
   registerFunctionalUpdateQueue,
   scheduleUpdate,
 } from './scheduler';
+import { renderWithContext } from './context';
 
 type HookAction<S> = S | ((lastState: S) => S);
 type Reducer<S, A> = (lastState: S, action: A) => S;
@@ -46,6 +47,12 @@ interface Hook {
   value?: unknown;
 }
 
+interface EffectJob {
+  component: FunctionalComponentState;
+  create: EffectCallback;
+  hook: Hook;
+}
+
 export interface AnimationHookCallbacks {
   onAppear?: (dom: Element) => void;
   onDisappear?: (dom: Element, callback: () => void) => void;
@@ -60,8 +67,8 @@ export interface FunctionalComponentState {
   isServer: boolean;
   isSVG: boolean;
   parentDOM: Element | null;
-  pendingEffects: Hook[] | null;
-  pendingLayoutEffects: Hook[] | null;
+  pendingEffects: EffectJob[] | null;
+  pendingLayoutEffects: EffectJob[] | null;
   queued: boolean;
   renderCount?: number;
   unmounted: boolean;
@@ -80,10 +87,7 @@ let functionalComponentUpdate:
   | null = null;
 
 const functionalComponentQueue: FunctionalComponentState[] = [];
-const pendingPassiveEffects: Array<{
-  component: FunctionalComponentState;
-  effects: Hook[];
-}> = [];
+const pendingPassiveEffects: EffectJob[] = [];
 let passiveEffectsPending = false;
 
 function invalidHookCall(): never {
@@ -222,7 +226,9 @@ function updateExternalStoreSelection(
   }
 }
 
-function runEffect(hook: Hook, component: FunctionalComponentState): void {
+function runEffect(job: EffectJob): void {
+  const { component, create, hook } = job;
+
   if (component.unmounted) {
     return;
   }
@@ -231,7 +237,7 @@ function runEffect(hook: Hook, component: FunctionalComponentState): void {
     hook.cleanup();
   }
 
-  const cleanup = hook.create!();
+  const cleanup = create();
   hook.cleanup = isFunction(cleanup) ? cleanup : null;
 }
 
@@ -242,11 +248,7 @@ function flushPassiveEffects(): void {
 
   try {
     while (index < pendingPassiveEffects.length) {
-      const { component, effects } = pendingPassiveEffects[index++];
-
-      for (let i = 0; i < effects.length; i++) {
-        runEffect(effects[i], component);
-      }
+      runEffect(pendingPassiveEffects[index++]);
     }
   } finally {
     if (index === pendingPassiveEffects.length) {
@@ -254,17 +256,18 @@ function flushPassiveEffects(): void {
     } else if (index > 0) {
       pendingPassiveEffects.splice(0, index);
     }
+
+    if (pendingPassiveEffects.length > 0 && !passiveEffectsPending) {
+      passiveEffectsPending = true;
+      resolvedPromise.then(flushPassiveEffects);
+    }
   }
 }
 
-function schedulePassiveEffects(
-  component: FunctionalComponentState,
-  effects: Hook[],
-): void {
-  pendingPassiveEffects.push({
-    component,
-    effects,
-  });
+function schedulePassiveEffects(effects: EffectJob[]): void {
+  for (let i = 0; i < effects.length; i++) {
+    pendingPassiveEffects.push(effects[i]);
+  }
 
   if (!passiveEffectsPending) {
     passiveEffectsPending = true;
@@ -310,7 +313,11 @@ function queueEffect(
     }
   }
 
-  effects.push(hook);
+  effects.push({
+    component,
+    create: hook.create!,
+    hook,
+  });
 }
 
 export function setFunctionalComponentUpdate(
@@ -404,7 +411,7 @@ export function commitFunctionalComponentEffects(
 
     lifecycle.push(() => {
       for (let i = 0; i < effects.length; i++) {
-        runEffect(effects[i], component);
+        runEffect(effects[i]);
       }
     });
   }
@@ -414,7 +421,7 @@ export function commitFunctionalComponentEffects(
     component.pendingEffects = null;
 
     lifecycle.push(() => {
-      schedulePassiveEffects(component, effects);
+      schedulePassiveEffects(effects);
     });
   }
 }
@@ -744,7 +751,7 @@ export function renderFunctionalComponentWithHooks(
   }
 
   try {
-    return render();
+    return renderWithContext(context, vNode, render);
   } finally {
     try {
       if (!isNullOrUndef(currentComponent)) {

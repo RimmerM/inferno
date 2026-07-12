@@ -1,6 +1,6 @@
-import { render } from 'inferno';
+import { readContext, render } from 'inferno';
 import { triggerEvent } from 'inferno-utils';
-import { Link, MemoryRouter } from 'inferno-router';
+import { Link, MemoryRouter, routerContext } from 'inferno-router';
 
 // These tests are not part of RR4 but it seems to be like they should pass
 describe('Link (jsx)', () => {
@@ -18,7 +18,7 @@ describe('Link (jsx)', () => {
   it('should trigger when clicked', () => {
     let history;
     const ContextChecker = (props, context) => {
-      history = context.router.history;
+      history = readContext(context, routerContext)!.history;
       return props.children;
     };
 

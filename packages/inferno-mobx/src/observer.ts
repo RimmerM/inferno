@@ -3,12 +3,14 @@ import {
   Component,
   createComponentVNode,
   type InfernoNode,
+  readContext,
   type VNode,
 } from 'inferno';
 import { EventEmitter } from './utils/EventEmitter';
 import { warning, hoistStaticProperties } from 'inferno-shared';
 import { isStateless } from './utils/utils';
 import { VNodeFlags } from 'inferno-vnode-flags';
+import { mobxStoresContext } from './context';
 
 /**
  * dev tool support
@@ -409,7 +411,11 @@ function createStoreInjector(grabStoresFn: Function, component, injectNames?) {
       }
 
       const additionalProps =
-        grabStoresFn(context.mobxStores || {}, newProps, context) || {};
+        grabStoresFn(
+          readContext(context, mobxStoresContext),
+          newProps,
+          context,
+        ) || {};
       for (key in additionalProps) {
         newProps[key] = additionalProps[key];
       }

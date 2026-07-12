@@ -1,9 +1,10 @@
-import { Component, render } from 'inferno';
+import { Component, readContext, render } from 'inferno';
 import { createElement } from 'inferno-create-element';
-import { connect, Provider } from 'inferno-redux';
+import { connect, Provider, reduxContext } from 'inferno-redux';
 import { findRenderedVNodeWithType } from 'inferno-test-utils';
 import { createStore } from 'redux';
 import { VNodeFlags } from 'inferno-vnode-flags';
+const getStore = (component) => readContext(component.context, reduxContext).store;
 
 describe('redux', () => {
   let container;
@@ -45,7 +46,7 @@ describe('redux', () => {
       expect(console.error).toHaveBeenCalledTimes(0);
 
       let child = findRenderedVNodeWithType(tree, Child).children;
-      expect(child.context.store).toBe(store1);
+      expect(getStore(child)).toBe(store1);
 
       tree = renderIntoContainer(
         createElement(
@@ -58,7 +59,7 @@ describe('redux', () => {
       expect(console.error).toHaveBeenCalledTimes(0);
 
       child = findRenderedVNodeWithType(tree, Child).children;
-      expect(child.context.store).toBe(store2);
+      expect(getStore(child)).toBe(store2);
     });
 
     it('should warn once when receiving a new store in props', () => {
@@ -84,13 +85,13 @@ describe('redux', () => {
       const vNode = <ProviderContainer />;
       const container = renderIntoContainer(vNode);
       const child = findRenderedVNodeWithType(container, Child).children;
-      expect(child.context.store.getState()).toEqual(11);
+      expect(getStore(child).getState()).toEqual(11);
 
       spyOn(console, 'error');
       container.setState({ store: store2 });
       renderIntoContainer(vNode);
 
-      expect(child.context.store.getState()).toEqual(11);
+      expect(getStore(child).getState()).toEqual(11);
       expect(console.error).toHaveBeenCalledTimes(1);
       expect(console.error).toHaveBeenCalledWith(
         '<Provider> does not support changing `store` on the fly.',
@@ -99,7 +100,7 @@ describe('redux', () => {
       container.setState({ store: store3 });
       renderIntoContainer(vNode);
 
-      expect(child.context.store.getState()).toEqual(11);
+      expect(getStore(child).getState()).toEqual(11);
       expect(console.error).toHaveBeenCalledTimes(1);
     });
 

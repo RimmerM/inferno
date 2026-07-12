@@ -1,5 +1,6 @@
-import { Component, type InfernoNode } from 'inferno';
+import { Component, type InfernoNode, readContext } from 'inferno';
 import { invariant } from './utils';
+import { routerContext } from './Router';
 
 export interface IPromptProps {
   when?: boolean;
@@ -17,7 +18,7 @@ export class Prompt extends Component<IPromptProps, any> {
       this.unblock();
     }
 
-    this.unblock = this.context.router.history.block((tx) => {
+    this.unblock = readContext(this.context, routerContext)!.history.block((tx) => {
       if (message && window.confirm(message)) {
         this.unblock();
         tx.retry();
@@ -34,7 +35,7 @@ export class Prompt extends Component<IPromptProps, any> {
 
   public componentWillMount(): void {
     invariant(
-      this.context.router,
+      readContext(this.context, routerContext),
       'You should not use <Prompt> outside a <Router>',
     );
 

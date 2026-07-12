@@ -3,11 +3,15 @@ import { type Dispatch, type Store } from 'redux';
 import {
   Component,
   createComponentVNode,
+  contextValue,
+  type Context,
   type InfernoNode,
   normalizeProps,
+  readContext,
 } from 'inferno';
 import { Subscription } from '../utils/Subscription';
 import { hoistStaticProperties } from 'inferno-shared';
+import { reduxContext } from './context';
 
 let hotReloadingVersion = 0;
 const noop = (): void => {};
@@ -194,13 +198,15 @@ export function connectAdvanced(
         run: (props: any) => void;
       };
 
-      constructor(props: P, context?: any) {
+      constructor(props: P, context?: Context) {
         super(props, context);
 
         this.version = version;
         this.state = {};
         this.renderCount = 0;
-        this.store = this.props[storeKey] || this.context[storeKey];
+        this.store =
+          this.props[storeKey] ||
+          readContext(this.context, reduxContext)[storeKey];
         this.propsMode = Boolean(props[storeKey]);
 
         this.setWrappedInstance = this.setWrappedInstance.bind(this);
@@ -217,15 +223,21 @@ export function connectAdvanced(
         this.initSubscription();
       }
 
-      public getChildContext(): Record<string, any> {
+      public getChildContext() {
         // If this component received store from props, its subscription should be transparent
         // to any descendants receiving store+subscription from context; it passes along
         // subscription passed to it. Otherwise, it shadows the parent subscription, which allows
         // Connect to control ordering of notifications to flow top-down.
         const subscription = this.propsMode ? null : this.subscription;
-        return {
-          [subscriptionKey]: subscription || this.context[subscriptionKey],
-        };
+        return contextValue(
+          reduxContext,
+          {
+            ...readContext(this.context, reduxContext),
+            [subscriptionKey]:
+              subscription ||
+              readContext(this.context, reduxContext)[subscriptionKey],
+          },
+        );
       }
 
       public componentWillMount(): void {
@@ -289,9 +301,9 @@ export function connectAdvanced(
 
         // parentSub's source should match where store came from: props vs. context. A component
         // connected to the store via props shouldn't use subscription from context, or vice versa.
-        const parentSub = (this.propsMode ? this.props : this.context)[
-          subscriptionKey
-        ];
+        const parentSub = this.propsMode
+          ? this.props[subscriptionKey]
+          : readContext(this.context, reduxContext)[subscriptionKey];
         this.subscription = new Subscription(
           this.store!,
           parentSub,

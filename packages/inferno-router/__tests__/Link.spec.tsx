@@ -1,5 +1,17 @@
-import {Component, InfernoNode, linkEvent, render} from 'inferno';
-import { HashRouter, Link, MemoryRouter } from 'inferno-router';
+import {
+  Component,
+  contextValue,
+  InfernoNode,
+  linkEvent,
+  readContext,
+  render,
+} from 'inferno';
+import {
+  HashRouter,
+  Link,
+  MemoryRouter,
+  routerContext,
+} from 'inferno-router';
 import { createMemoryHistory, parsePath } from 'history';
 
 describe('Link (jsx)', () => {
@@ -146,12 +158,10 @@ describe('A <Link> underneath a <HashRouter>', () => {
 
     class ContextChecker extends Component<{ children?: InfernoNode }> {
       public getChildContext() {
-        const { context } = this;
-        context.router.history = memoryHistoryFoo;
+        const router = readContext(this.context, routerContext)!;
+        router.history = memoryHistoryFoo;
 
-        return {
-          router: context.router,
-        };
+        return contextValue(routerContext, router);
       }
 
       public render({ children }) {
@@ -200,12 +210,10 @@ describe('A <Link> underneath a <HashRouter>', () => {
 
     class ContextChecker extends Component<{ children?: InfernoNode }> {
       public getChildContext() {
-        const { context } = this;
-        context.router.history = memoryHistoryFoo;
+        const router = readContext(this.context, routerContext)!;
+        router.history = memoryHistoryFoo;
 
-        return {
-          router: context.router,
-        };
+        return contextValue(routerContext, router);
       }
 
       public render({ children }) {

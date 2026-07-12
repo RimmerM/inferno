@@ -6,6 +6,7 @@ import type {
   NativeFocusEvent,
 } from './nativetypes';
 import type { FunctionalComponentState } from './hooks';
+import type { Context, ContextOverrides } from './context';
 import type { ChildFlags, VNodeFlags } from 'inferno-vnode-flags';
 import type { PropertiesHyphen } from 'csstype';
 
@@ -24,7 +25,7 @@ export type InfernoSingleNode = InfernoChild | boolean | null | undefined;
 export type InfernoNode = InfernoSingleNode | InfernoFragment;
 export type InfernoKeyedNode = Inferno.InfernoElement & { key: string | number };
 export type NonEmptyProps = Record<string, unknown>;
-export type ContextObject = Record<string, unknown>;
+export type ContextObject = Context;
 export type ParentDOM =
   | Element
   | SVGAElement
@@ -43,7 +44,7 @@ export interface IComponent<P, S> {
       children?: InfernoNode;
     } & P
   >;
-  context?: any;
+  context?: Context;
   displayName?: string;
   refs?: any;
 
@@ -65,19 +66,19 @@ export interface IComponent<P, S> {
 
   componentWillReceiveProps?(
     nextProps: Readonly<{ children?: InfernoNode } & P>,
-    nextContext: any,
+    nextContext: Context,
   ): void;
 
   shouldComponentUpdate?(
     nextProps: Readonly<{ children?: InfernoNode } & P>,
     nextState: Readonly<S>,
-    context: any,
+    context: Context,
   ): boolean;
 
   componentWillUpdate?(
     nextProps: Readonly<{ children?: InfernoNode } & P>,
     nextState: Readonly<S>,
-    context: any,
+    context: Context,
   ): void;
 
   componentDidUpdate?(
@@ -98,7 +99,7 @@ export interface IComponent<P, S> {
     dom: Element,
   ): void;
 
-  getChildContext?(): void;
+  getChildContext?(): ContextOverrides | null;
 
   getSnapshotBeforeUpdate?(
     prevProps: Readonly<{ children?: InfernoNode } & P>,
@@ -108,7 +109,7 @@ export interface IComponent<P, S> {
   render(
     nextProps: Readonly<{ children?: InfernoNode } & P>,
     nextState: Readonly<S>,
-    nextContext: any,
+    nextContext: Context,
   ): InfernoNode;
 }
 
@@ -193,6 +194,7 @@ type CrossOrigin = 'anonymous' | 'use-credentials' | '' | null | undefined;
 
 export interface VNode {
   $H?: FunctionalComponentState | null;
+  $CX?: Context;
   children: InfernoNode;
   childFlags: ChildFlags;
   dom: Element | null;
@@ -367,8 +369,8 @@ export declare namespace Inferno {
   // Component API
   // ----------------------------------------------------------------------
 
-  interface ChildContextProvider<CC> {
-    getChildContext(): CC;
+  interface ChildContextProvider {
+    getChildContext(): ContextOverrides | null;
   }
 
   //
@@ -381,7 +383,7 @@ export declare namespace Inferno {
       props: {
         children?: InfernoNode;
       } & P,
-      context?: any,
+      context: Context,
     ): InfernoElement | null;
     defaultProps?: Partial<P> | undefined | null;
   }
@@ -391,7 +393,7 @@ export declare namespace Inferno {
       props?: {
         children?: InfernoNode;
       } & P,
-      context?: any,
+      context?: Context,
     ): IComponent<P, ComponentState>;
     defaultProps?: Partial<P> | undefined | null;
   }

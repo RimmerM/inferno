@@ -1,5 +1,13 @@
-import { Component, render } from 'inferno';
+import {
+  Component,
+  contextValue,
+  createContext,
+  readContext,
+  render,
+} from 'inferno';
 import { createElement } from 'inferno-create-element';
+
+const ColorContext = createContext('unset');
 
 describe('Components (non-JSX)', () => {
   let container;
@@ -1268,7 +1276,7 @@ describe('Components (non-JSX)', () => {
         function checkParams(state, props, context) {
           expect(state).toEqual({ btnstate: 'btnstate' });
           expect(props).toEqual({ buttonProp: 'magic', children: 'btn' });
-          expect(context).toEqual({ color: 'purple' });
+          expect(readContext(context, ColorContext)).toBe('purple');
           done();
         }
 
@@ -1290,7 +1298,7 @@ describe('Components (non-JSX)', () => {
               {
                 onClick: this.click.bind(this),
                 style: {
-                  background: this.context.color,
+                  background: readContext(this.context, ColorContext),
                 },
               },
               this.props.children,
@@ -1309,7 +1317,7 @@ describe('Components (non-JSX)', () => {
 
         class MessageList extends Component<{ messages: { text: string }[] }> {
           getChildContext() {
-            return { color: 'purple' };
+            return contextValue(ColorContext, 'purple');
           }
 
           render() {

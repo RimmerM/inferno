@@ -8,8 +8,12 @@
  */
 
 import React from 'inferno-compat';
+import { contextValue, createContext, readContext } from 'inferno';
 
 const ReactDOM = React;
+const TagContext = createContext('div');
+const ClassNameContext = createContext('');
+const BarContext = createContext('');
 
 describe('ReactES6Class', function () {
   let container;
@@ -98,7 +102,10 @@ describe('ReactES6Class', function () {
       constructor(props, context) {
         super(props, context);
 
-        this.state = { tag: context.tag, className: this.context.className };
+        this.state = {
+          tag: readContext(context, TagContext),
+          className: readContext(this.context, ClassNameContext),
+        };
       }
 
       render() {
@@ -113,7 +120,10 @@ describe('ReactES6Class', function () {
 
     class Outer extends React.Component {
       getChildContext() {
-        return { tag: 'span', className: 'foo' };
+        return [
+          contextValue(TagContext, 'span'),
+          contextValue(ClassNameContext, 'foo'),
+        ];
       }
 
       render() {
@@ -295,13 +305,13 @@ describe('ReactES6Class', function () {
   it('supports this.context passed via getChildContext', function () {
     class Bar extends React.Component {
       render() {
-        return <div className={this.context.bar} />;
+        return <div className={readContext(this.context, BarContext)} />;
       }
     }
     Bar.contextTypes = { bar: React.PropTypes.string };
     class Foo extends React.Component {
       getChildContext() {
-        return { bar: 'bar-through-context' };
+        return contextValue(BarContext, 'bar-through-context');
       }
 
       render() {

@@ -1,4 +1,17 @@
-import { Component, type DragEvent, render, rerender } from 'inferno';
+import {
+  Component,
+  contextValue,
+  createContext,
+  type DragEvent,
+  render,
+  rerender,
+  useContext,
+} from 'inferno';
+
+const ActiveContext = createContext<{
+  active: boolean;
+  state: { active: boolean };
+} | null>(null);
 
 describe('setState', () => {
   let container;
@@ -887,7 +900,8 @@ describe('setState', () => {
   });
 
   it('Should keep context in sync with state #1182', () => {
-    function Child(_props, context) {
+    function Child() {
+      const context = useContext(ActiveContext)!;
       return (
         <div>
           {(context.active ? 'ACTIVE' : 'INACTIVE') +
@@ -910,10 +924,10 @@ describe('setState', () => {
       }
 
       public getChildContext() {
-        return {
+        return contextValue(ActiveContext, {
           active: this.state.active,
           state: this.state,
-        };
+        });
       }
 
       public componentWillReceiveProps(nextProps) {

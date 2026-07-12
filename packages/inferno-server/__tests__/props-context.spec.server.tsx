@@ -1,10 +1,20 @@
 import { renderToStaticMarkup } from 'inferno-server';
-import { Component, InfernoNode } from 'inferno';
+import {
+  Component,
+  contextValue,
+  type Context,
+  createContext,
+  InfernoNode,
+  readContext,
+} from 'inferno';
+
+const TestContextValue = createContext('');
+const TestContextWrap = createContext('');
 
 describe('SSR render() arguments', () => {
   class TestProvider extends Component<{ children?: InfernoNode }> {
     getChildContext() {
-      return { testContext: 'context-works' };
+      return contextValue(TestContextValue, 'context-works');
     }
 
     render({ children }) {
@@ -45,7 +55,7 @@ describe('SSR render() arguments', () => {
   it('statefull has context as 3rd argument', () => {
     class TestChild extends Component {
       render(_props, _state, context) {
-        return <p>{context.testContext}</p>;
+        return <p>{readContext(context, TestContextValue)}</p>;
       }
     }
 
@@ -58,8 +68,8 @@ describe('SSR render() arguments', () => {
   });
 
   it('stateless has context as 2nd argument', () => {
-    function TestChild(_props, context) {
-      return <p>{context.testContext}</p>;
+    function TestChild(_props, context: Context) {
+      return <p>{readContext(context, TestContextValue)}</p>;
     }
 
     const output = renderToStaticMarkup(
@@ -74,8 +84,8 @@ describe('SSR render() arguments', () => {
     function ChildWrapper(props) {
       return props.children;
     }
-    function TestChild(_props, context) {
-      return <p>{context.testContext}</p>;
+    function TestChild(_props, context: Context) {
+      return <p>{readContext(context, TestContextValue)}</p>;
     }
     const output = renderToStaticMarkup(
       <TestProvider>
@@ -92,17 +102,18 @@ describe('SSR render() arguments', () => {
   it('nested providers should have merged context', () => {
     class TestContext extends Component<{ children?: InfernoNode }> {
       getChildContext() {
-        return { testContextWrap: 'context-wrap-works' };
+        return contextValue(TestContextWrap, 'context-wrap-works');
       }
 
       render({ children }) {
         return children;
       }
     }
-    function TestChild(_props: unknown, context) {
+    function TestChild(_props: unknown, context: Context) {
       return (
         <p>
-          {context.testContext}|{context.testContextWrap}
+          {readContext(context, TestContextValue)}|
+          {readContext(context, TestContextWrap)}
         </p>
       );
     }

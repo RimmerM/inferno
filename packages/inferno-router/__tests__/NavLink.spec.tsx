@@ -1,6 +1,17 @@
 import { createMemoryHistory } from 'history';
-import { Component, InfernoNode, render } from 'inferno';
-import { HashRouter, MemoryRouter, NavLink } from 'inferno-router';
+import {
+  Component,
+  contextValue,
+  InfernoNode,
+  readContext,
+  render,
+} from 'inferno';
+import {
+  HashRouter,
+  MemoryRouter,
+  NavLink,
+  routerContext,
+} from 'inferno-router';
 
 describe('NavLink', () => {
   let node;
@@ -519,12 +530,10 @@ describe('NavLink', () => {
 
       class ContextChecker extends Component<{ children?: InfernoNode }> {
         public getChildContext() {
-          const { context } = this;
-          context.router.history = memoryHistoryFoo;
+          const router = readContext(this.context, routerContext)!;
+          router.history = memoryHistoryFoo;
 
-          return {
-            router: context.router,
-          };
+          return contextValue(routerContext, router);
         }
 
         public render({ children }) {

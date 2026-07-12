@@ -1,6 +1,14 @@
-import { Component, type InfernoNode } from 'inferno';
+import {
+  Component,
+  contextValue,
+  type Context,
+  type ContextOverrides,
+  type InfernoNode,
+  readContext,
+} from 'inferno';
 import { type Action, type AnyAction, type Store } from 'redux';
 import { warning } from '../utils/warning';
+import { reduxContext } from './context';
 
 let didWarnAboutReceivingStore = false;
 const warnAboutReceivingStore = (): void => {
@@ -24,13 +32,19 @@ export class Provider<A extends Action = AnyAction> extends Component<
   public static displayName = 'Provider';
   private readonly store: Store<any, A>;
 
-  constructor(props: Props<A>, context: any) {
+  constructor(props: Props<A>, context: Context) {
     super(props, context);
     this.store = props.store;
   }
 
-  public getChildContext(): { store: Store<any, A>; storeSubscription: null } {
-    return { store: this.store, storeSubscription: null };
+  public getChildContext(): ContextOverrides {
+    return [
+      contextValue(reduxContext, {
+        ...readContext(this.context, reduxContext),
+        store: this.store,
+        storeSubscription: null,
+      }),
+    ];
   }
 
   // Don't infer the return type. It may be expanded and cause reference errors
@@ -41,7 +55,7 @@ export class Provider<A extends Action = AnyAction> extends Component<
 
   public componentWillReceiveProps?(
     nextProps: Readonly<{ children?: InfernoNode } & Props<A>>,
-    nextContext: any,
+    nextContext: Context,
   ): void;
 }
 

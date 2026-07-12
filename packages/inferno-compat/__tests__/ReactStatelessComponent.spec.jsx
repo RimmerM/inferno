@@ -10,11 +10,18 @@
  */
 
 import React from 'inferno-compat';
-import { createComponentVNode } from 'inferno';
+import {
+  contextValue,
+  createComponentVNode,
+  createContext,
+  readContext,
+} from 'inferno';
 import { Wrapper } from 'inferno-test-utils';
 import { VNodeFlags } from 'inferno-vnode-flags';
 
 const ReactDOM = React;
+const TestContext = createContext('');
+const LangContext = createContext('');
 
 function StatelessComponent(props) {
   return <div>{props.name}</div>;
@@ -82,7 +89,7 @@ describe('ReactStatelessComponent', function () {
       };
 
       render() {
-        return <div>{this.context.test}</div>;
+        return <div>{readContext(this.context, TestContext)}</div>;
       }
     }
 
@@ -96,7 +103,7 @@ describe('ReactStatelessComponent', function () {
       };
 
       getChildContext() {
-        return { test: this.props.test };
+        return contextValue(TestContext, this.props.test);
       }
 
       render() {
@@ -135,7 +142,7 @@ describe('ReactStatelessComponent', function () {
       };
 
       getChildContext() {
-        return { lang: 'en' };
+        return contextValue(LangContext, 'en');
       }
 
       render() {
@@ -144,7 +151,7 @@ describe('ReactStatelessComponent', function () {
     }
 
     function Child(props, context) {
-      return <div>{context.lang}</div>;
+      return <div>{readContext(context, LangContext)}</div>;
     }
     Child.contextTypes = { lang: React.PropTypes.string };
 

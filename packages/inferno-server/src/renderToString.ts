@@ -1,4 +1,12 @@
-import { EMPTY_OBJ } from 'inferno';
+import {
+  _ACO,
+  _GCC,
+  _GDC,
+  _LC,
+  _RWC,
+  EMPTY_OBJ,
+  type Context,
+} from 'inferno';
 import {
   isArray,
   isFunction,
@@ -33,16 +41,7 @@ function renderVNodeToString(vNode, parent, context): string {
       const hasNewAPI = Boolean(type.getDerivedStateFromProps);
       instance.$BS = false;
       instance.$SSR = true;
-      let childContext;
-      if (isFunction(instance.getChildContext)) {
-        childContext = instance.getChildContext();
-      }
-
-      if (isNullOrUndef(childContext)) {
-        childContext = context;
-      } else {
-        childContext = { ...context, ...childContext };
-      }
+      instance.$CX = context;
       if (instance.props === EMPTY_OBJ) {
         instance.props = props;
       }
@@ -70,11 +69,12 @@ function renderVNodeToString(vNode, parent, context): string {
       if (hasNewAPI) {
         instance.state = createDerivedState(instance, props, instance.state);
       }
-      const renderOutput = instance.render(
-        props,
-        instance.state,
-        instance.context,
+      const renderOutput = _RWC(context, instance, () =>
+        instance.render(props, instance.state, instance.context),
       );
+      const childContext = isFunction(instance.getChildContext)
+        ? _ACO(instance.$CX, instance.getChildContext())
+        : instance.$CX;
       // In case render returns invalid stuff
       if (isInvalid(renderOutput)) {
         return '<!--!-->';
@@ -98,7 +98,11 @@ function renderVNodeToString(vNode, parent, context): string {
       if (isNumber(renderOutput)) {
         return renderOutput + '';
       }
-      return renderVNodeToString(renderOutput, vNode, context);
+      return renderVNodeToString(
+        renderOutput,
+        vNode,
+        _GCC(vNode, context),
+      );
     }
   } else if ((flags & VNodeFlags.Element) !== 0) {
     let renderedString = `<${type}`;
@@ -234,6 +238,7 @@ function renderVNodeToString(vNode, parent, context): string {
   return '';
 }
 
-export function renderToString(input: any): string {
-  return renderVNodeToString(input, {}, {});
+export function renderToString(input: any, context?: Context): string {
+  _LC();
+  return renderVNodeToString(input, null, context || _GDC());
 }

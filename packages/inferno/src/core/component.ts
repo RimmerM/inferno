@@ -15,6 +15,11 @@ import {
   registerClassUpdateQueue,
   scheduleUpdate,
 } from './scheduler';
+import {
+  type Context,
+  type ContextOverrides,
+  getDefaultContext,
+} from './context';
 
 const COMPONENTS_QUEUE: Array<Component<any, any>> = [];
 
@@ -151,7 +156,7 @@ export abstract class Component<
   // Public
   public state: Readonly<S | null> = null;
   public props: Readonly<{ children?: InfernoNode }> & Readonly<P>;
-  public context: any;
+  public context: Context;
   public displayName?: string;
 
   // Internal properties
@@ -160,7 +165,7 @@ export abstract class Component<
   public $PS: Partial<S> | null = null; // PENDING STATE (PARTIAL or FULL)
   public $LI: any = null; // LAST INPUT
   public $UN: boolean = false; // UNMOUNTED
-  public $CX: any = null; // CHILDCONTEXT
+  public $CX: Context | null = null; // CHILDCONTEXT
   public $QU: Array<() => void> | null = null; // QUEUE
   public $N: boolean = false; // Uses new lifecycle API Flag
   public $SSR?: boolean; // Server side rendering flag, true when rendering on server, non existent on client
@@ -168,10 +173,10 @@ export abstract class Component<
   public $SVG: boolean = false; // Flag to keep track if component is inside SVG tree
   public $F: boolean = false; // Force update flag
 
-  constructor(props?: P, context?: any) {
+  constructor(props?: P, context?: Context) {
     this.props = (props || EMPTY_OBJ) as Readonly<{ children?: InfernoNode }> &
       Readonly<P>;
-    this.context = context || EMPTY_OBJ; // context should not be mutable
+    this.context = context || getDefaultContext();
   }
 
   public forceUpdate(callback?: (() => void) | undefined): void {
@@ -212,19 +217,19 @@ export abstract class Component<
 
   public componentWillReceiveProps?(
     nextProps: Readonly<{ children?: InfernoNode } & P>,
-    nextContext: any,
+    nextContext: Context,
   ): void;
 
   public shouldComponentUpdate?(
     nextProps: Readonly<{ children?: InfernoNode } & P>,
     nextState: Readonly<S>,
-    context: any,
+    context: Context,
   ): boolean;
 
   public componentWillUpdate?(
     nextProps: Readonly<{ children?: InfernoNode } & P>,
     nextState: Readonly<S>,
-    context: any,
+    context: Context,
   ): void;
 
   public componentDidUpdate?(
@@ -245,7 +250,7 @@ export abstract class Component<
     dom: Element,
   ): void;
 
-  public getChildContext?(): void;
+  public getChildContext?(): ContextOverrides | null;
 
   public getSnapshotBeforeUpdate?(
     prevProps: Readonly<{ children?: InfernoNode } & P>,
@@ -258,7 +263,7 @@ export abstract class Component<
 
   /* eslint-disable */
   // @ts-ignore
-  public render(props: Readonly<{ children?: InfernoNode } & P>, state: Readonly<S>, context: any): InfernoNode {
+  public render(props: Readonly<{ children?: InfernoNode } & P>, state: Readonly<S>, context: Context): InfernoNode {
     return null;
   }
 }

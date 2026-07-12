@@ -51,6 +51,10 @@ import {
   setFunctionalComponentState,
 } from '../core/hooks';
 import { shallowEqualProps } from '../core/memo';
+import {
+  getChildContext,
+  transferChildContext,
+} from '../core/context';
 
 setFunctionalComponentUpdate(updateFunctionalComponent);
 
@@ -823,6 +827,7 @@ function patchFunctionalComponent(
     nextVNode.children = lastInput;
     nextVNode.dom = lastVNode.dom;
     setFunctionalComponentState(nextVNode, component);
+    transferChildContext(lastVNode, nextVNode);
 
     return;
   }
@@ -845,6 +850,8 @@ function patchFunctionalComponent(
     setFunctionalComponentState(nextVNode, component);
   }
 
+  transferChildContext(lastVNode, nextVNode);
+
   const nextInput = normalizeRoot(
     renderFunctionalComponentWithHooks(
       nextVNode,
@@ -860,7 +867,7 @@ function patchFunctionalComponent(
     lastInput,
     nextInput,
     parentDOM,
-    context,
+    getChildContext(nextVNode, context),
     isSVG,
     nextNode,
     lifecycle,
@@ -905,7 +912,7 @@ function updateFunctionalComponent(
       lastInput,
       nextInput,
       parentDOM,
-      component.context,
+      getChildContext(component.vNode, component.context),
       component.isSVG,
       null,
       lifecycle,

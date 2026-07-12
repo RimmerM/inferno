@@ -17,18 +17,28 @@ import {
   renderFunctionalComponent,
   voidElements,
 } from './utils';
-import type { VNode } from 'inferno';
+import {
+  _ACO,
+  _GCC,
+  _GDC,
+  _LC,
+  _RWC,
+  type Context,
+  type VNode,
+} from 'inferno';
 import { mergePendingState } from './stream/streamUtils';
 
 const resolvedPromise = Promise.resolve();
 
 export class RenderStream extends Readable {
   public initNode: any;
+  public context: Context;
   public started: boolean = false;
 
-  constructor(initNode) {
+  constructor(initNode, context?: Context) {
     super();
     this.initNode = initNode;
+    this.context = context || _GDC();
   }
 
   public _read(): void {
@@ -36,10 +46,11 @@ export class RenderStream extends Readable {
       return;
     }
     this.started = true;
+    _LC();
 
     resolvedPromise
       .then(() => {
-        return this.renderNode(this.initNode, null);
+        return this.renderNode(this.initNode, this.context);
       })
       .then(() => {
         this.push(null);
@@ -107,22 +118,15 @@ export class RenderStream extends Readable {
         return this.push(renderOutput + '');
       }
 
-      return this.renderNode(renderOutput, context);
+      return this.renderNode(renderOutput, _GCC(vComponent, context));
     }
 
     const instance = new type(props, context);
     const hasNewAPI = Boolean(type.getDerivedStateFromProps);
     instance.$BS = false;
     instance.$SSR = true;
-    let childContext;
-    if (isFunction(instance.getChildContext)) {
-      childContext = instance.getChildContext();
-    }
-
-    if (!isNullOrUndef(childContext)) {
-      context = { ...context, ...childContext };
-    }
     instance.context = context;
+    instance.$CX = context;
     instance.$BR = true;
 
     return Promise.resolve(!hasNewAPI && instance.componentWillMount?.()).then(
@@ -132,11 +136,12 @@ export class RenderStream extends Readable {
         if (hasNewAPI) {
           instance.state = createDerivedState(instance, props, instance.state);
         }
-        const renderOutput = instance.render(
-          instance.props,
-          instance.state,
-          instance.context,
+        const renderOutput = _RWC(context, instance, () =>
+          instance.render(instance.props, instance.state, instance.context),
         );
+        const childContext = isFunction(instance.getChildContext)
+          ? _ACO(instance.$CX, instance.getChildContext())
+          : instance.$CX;
 
         if (isInvalid(renderOutput)) {
           return this.push('<!--!-->');
@@ -148,7 +153,7 @@ export class RenderStream extends Readable {
           return this.push(renderOutput + '');
         }
 
-        return this.renderNode(renderOutput, context);
+        return this.renderNode(renderOutput, childContext);
       },
     );
   }
@@ -274,6 +279,6 @@ export class RenderStream extends Readable {
   }
 }
 
-export function streamAsString(node) {
-  return new RenderStream(node);
+export function streamAsString(node, context?: Context) {
+  return new RenderStream(node, context);
 }

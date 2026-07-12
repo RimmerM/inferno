@@ -11,6 +11,9 @@ import {
   _CI,
   _CFS,
   _HI,
+  _GCC,
+  _GDC,
+  _LC,
   _M,
   _MCCC,
   _ME,
@@ -22,6 +25,7 @@ import {
   _SFCS,
   AnimationQueues,
   type ContextObject,
+  type Context,
   EMPTY_OBJ,
   render,
   type VNode,
@@ -92,7 +96,7 @@ function hydrateComponent(
       input,
       parentDOM,
       dom,
-      instance.$CX,
+      instance.$CX!,
       isSVG,
       lifecycle,
       animations,
@@ -113,7 +117,7 @@ function hydrateComponent(
       input,
       parentDOM,
       dom,
-      context,
+      _GCC(vNode, context),
       isSVG,
       lifecycle,
       animations,
@@ -399,7 +403,10 @@ export function hydrate(
   input,
   parentDOM: Element,
   callback?: () => void,
+  context?: Context,
 ): void {
+  _LC();
+  const rootContext = context || _GDC();
   let dom: Element | null = parentDOM.firstChild as Element;
 
   if (isNull(dom)) {
@@ -408,7 +415,7 @@ export function hydrate(
         "Inferno hydration: Server-side markup doesn't match client-side markup",
       );
     }
-    render(input, parentDOM, callback);
+    render(input, parentDOM, callback, rootContext);
   } else {
     const lifecycle: Array<() => void> = [];
     const animations: AnimationQueues = new AnimationQueues();
@@ -418,7 +425,7 @@ export function hydrate(
         input,
         parentDOM,
         dom,
-        {},
+        rootContext,
         false,
         lifecycle,
         animations,

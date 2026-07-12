@@ -1,5 +1,12 @@
-import { Component, type InfernoNode } from 'inferno';
+import {
+  Component,
+  contextValue,
+  type ContextOverride,
+  type InfernoNode,
+  readContext,
+} from 'inferno';
 import { warning } from 'inferno-shared';
+import { mobxStoresContext } from './context';
 
 const specialKeys = {
   children: true,
@@ -12,11 +19,11 @@ export class Provider extends Component<any, any> {
     return props.children;
   }
 
-  public getChildContext(): { mobxStores: any } {
+  public getChildContext(): ContextOverride<Record<string, any>> {
     const stores = {} as any;
     // inherit stores
     const props = this.props;
-    const baseStores = this.context.mobxStores;
+    const baseStores = readContext(this.context, mobxStoresContext);
 
     if (baseStores) {
       for (const key in baseStores) {
@@ -33,9 +40,7 @@ export class Provider extends Component<any, any> {
       }
     }
 
-    return {
-      mobxStores: stores,
-    };
+    return contextValue(mobxStoresContext, stores);
   }
 }
 

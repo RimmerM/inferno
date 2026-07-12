@@ -1,5 +1,11 @@
-import { render } from 'inferno';
-import { Link, MemoryRouter, Route, Switch } from 'inferno-router';
+import { readContext, render } from 'inferno';
+import {
+  Link,
+  MemoryRouter,
+  Route,
+  routerContext,
+  Switch,
+} from 'inferno-router';
 
 describe('A <MemoryRouter>', () => {
   let container;
@@ -18,7 +24,7 @@ describe('A <MemoryRouter>', () => {
   it('puts history on context.router', () => {
     let history;
     const ContextChecker = (_props, context) => {
-      history = context.router.history;
+      history = readContext(context, routerContext)!.history;
       return null;
     };
 

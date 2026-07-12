@@ -1,12 +1,19 @@
 import {
   Component,
+  contextValue,
+  type ContextOverride,
   createComponentVNode,
   type InfernoNode,
   type Props,
 } from 'inferno';
 import { VNodeFlags } from 'inferno-vnode-flags';
 import { Action, type Location, parsePath, type Path } from 'history';
-import { Router, type TLoaderData } from './Router';
+import {
+  Router,
+  routerContext,
+  type TContextRouter,
+  type TLoaderData,
+} from './Router';
 import { combinePath, invariant, warning } from './utils';
 import { isString } from 'inferno-shared';
 
@@ -35,18 +42,14 @@ export class StaticRouter<P, S> extends Component<
     location: '/',
   };
 
-  public getChildContext(): {
-    router: {
-      initialData?: Record<string, TLoaderData>;
-      staticContext: Record<string, unknown>;
-    };
-  } {
-    return {
-      router: {
+  public getChildContext(): ContextOverride<TContextRouter | null> {
+    return contextValue(
+      routerContext,
+      {
         initialData: this.props.initialData,
         staticContext: this.props.context,
-      },
-    };
+      } as TContextRouter,
+    );
   }
 
   public createHref = (path: string): string =>

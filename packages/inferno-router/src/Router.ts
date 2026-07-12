@@ -1,4 +1,12 @@
-import { Component, type InfernoNode } from 'inferno';
+import {
+  Component,
+  contextValue,
+  type Context,
+  type ContextOverride,
+  createContext,
+  type InfernoNode,
+  readContext,
+} from 'inferno';
 import { isUndefined } from 'inferno-shared';
 import type { History, Location } from 'history';
 import { warning } from './utils';
@@ -47,9 +55,7 @@ export interface TContextRouter {
   staticContext?: object; // TODO: This should be properly typed
 }
 
-export interface RouterContext {
-  router: TContextRouter;
-}
+export const routerContext = createContext<TContextRouter | null>(null);
 
 /**
  * The public API for putting history on context.
@@ -59,7 +65,7 @@ export class Router extends Component<IRouterProps, any> {
   private _loaderFetchControllers: AbortController[] = [];
   private _loaderIteration = 0;
 
-  constructor(props: IRouterProps, context: { router: TContextRouter }) {
+  constructor(props: IRouterProps, context: Context) {
     super(props, context);
     const match = this.computeMatch(props.history.location.pathname);
     this.state = {
@@ -68,18 +74,16 @@ export class Router extends Component<IRouterProps, any> {
     };
   }
 
-  public getChildContext(): RouterContext {
-    const parentRouter: TContextRouter = this.context.router;
-    const router: TContextRouter = { ...parentRouter };
+  public getChildContext(): ContextOverride<TContextRouter | null> {
+    const parentRouter = readContext(this.context, routerContext);
+    const router = { ...parentRouter } as TContextRouter;
     router.history = this.props.history;
     router.route = {
       location: router.history.location,
       match: this.state?.match, // Why are we sending this? it appears useless.
     };
     router.initialData = this.state?.initialData; // this is a dictionary of all data available
-    return {
-      router,
-    };
+    return contextValue(routerContext, router);
   }
 
   public computeMatch(pathname): Match<any> {

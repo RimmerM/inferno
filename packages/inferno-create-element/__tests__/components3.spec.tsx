@@ -1,4 +1,14 @@
-import { Component, InfernoChild, render, rerender } from 'inferno';
+import {
+  Component,
+  contextValue,
+  createContext,
+  InfernoChild,
+  render,
+  rerender,
+  useContext,
+} from 'inferno';
+
+const FortyTwoContext = createContext(0);
 
 describe('Components 3 (TSX)', () => {
   let container;
@@ -387,11 +397,14 @@ describe('Components 3 (TSX)', () => {
   });
 
   describe('should render a stateless component with context', () => {
-    const StatelessComponent3 = ({ value }, { fortyTwo }) => (
-      <p>
-        {value}-{fortyTwo || 'ERROR'}
-      </p>
-    );
+    const StatelessComponent3 = ({ value }) => {
+      const fortyTwo = useContext(FortyTwoContext);
+      return (
+        <p>
+          {value}-{fortyTwo || 'ERROR'}
+        </p>
+      );
+    };
 
     interface FirstState {
       counter: number;
@@ -417,9 +430,7 @@ describe('Components 3 (TSX)', () => {
       }
 
       getChildContext() {
-        return {
-          fortyTwo: 42,
-        };
+        return contextValue(FortyTwoContext, 42);
       }
 
       render() {

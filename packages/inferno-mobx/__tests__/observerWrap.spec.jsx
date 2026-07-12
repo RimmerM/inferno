@@ -1,9 +1,16 @@
-import { Component, render } from 'inferno';
+import {
+  Component,
+  contextValue,
+  createContext,
+  readContext,
+  render,
+} from 'inferno';
 import { inject, observer, observerWrap } from 'inferno-mobx';
 import { createElement } from 'inferno-create-element';
 import { getObserverTree, observable, runInAction } from 'mobx';
 
 const stateLessComp = ({ testProp }) => <div>result: {testProp}</div>;
+const TestContext = createContext('');
 
 stateLessComp.defaultProps = {
   testProp: 'default value for prop testProp',
@@ -38,11 +45,15 @@ describe('Stateless components observerWrap', () => {
 
   it('stateless component with context support', () => {
     const InnerComp = (_props, context) =>
-      createElement('p', {}, 'inner: ' + context.testContext);
+      createElement('p', {}, 'inner: ' + readContext(context, TestContext));
     const StateLessCompWithContext = ({ store: { value } }, context) => {
       return createElement('div', {}, [
         createElement('p', {}, 'value: ' + value + ', '),
-        createElement('p', {}, 'outer: ' + context.testContext + ', '),
+        createElement(
+          'p',
+          {},
+          'outer: ' + readContext(context, TestContext) + ', ',
+        ),
         createElement(InnerComp, {}),
       ]);
     };
@@ -54,7 +65,7 @@ describe('Stateless components observerWrap', () => {
     });
     class ContextProvider extends Component {
       getChildContext() {
-        return { testContext: 'hello' };
+        return contextValue(TestContext, 'hello');
       }
 
       render() {

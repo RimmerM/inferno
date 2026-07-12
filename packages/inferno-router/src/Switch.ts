@@ -1,9 +1,15 @@
-import { Component, createComponentVNode, type VNode } from 'inferno';
+import {
+  Component,
+  type Context,
+  createComponentVNode,
+  readContext,
+  type VNode,
+} from 'inferno';
 import { matchPath } from './matchPath';
 import { invariant, warning } from './utils';
 import { isArray, isInvalid } from 'inferno-shared';
 import { type IRouteProps, type Match } from './Route';
-import { type RouterContext } from './Router';
+import { routerContext } from './Router';
 
 function getMatch(
   pathname: string,
@@ -59,17 +65,17 @@ function extractFirstMatchFromChildren(
 }
 
 export class Switch extends Component<IRouteProps, SwitchState> {
-  constructor(props, context: RouterContext) {
+  constructor(props, context: Context) {
     super(props, context);
 
     if (process.env.NODE_ENV !== 'production') {
       invariant(
-        context.router,
+        readContext(context, routerContext),
         'You should not use <Switch> outside a <Router>',
       );
     }
 
-    const { router } = context;
+    const router = readContext(context, routerContext)!;
     const { location, children } = props;
     const pathname = (location || router.route.location).pathname;
     const { match, _child } = extractFirstMatchFromChildren(
@@ -86,7 +92,7 @@ export class Switch extends Component<IRouteProps, SwitchState> {
 
   public componentWillReceiveProps(
     nextProps: IRouteProps,
-    nextContext: RouterContext,
+    nextContext: Context,
   ): void {
     if (process.env.NODE_ENV !== 'production') {
       warning(
@@ -100,7 +106,7 @@ export class Switch extends Component<IRouteProps, SwitchState> {
       );
     }
 
-    const { router } = nextContext;
+    const router = readContext(nextContext, routerContext)!;
     const { location, children } = nextProps;
     const pathname = (location || router.route.location).pathname;
     const { match, _child } = extractFirstMatchFromChildren(
@@ -115,14 +121,14 @@ export class Switch extends Component<IRouteProps, SwitchState> {
   public render(
     { children, location }: IRouteProps,
     { match, _child }: SwitchState,
-    context: RouterContext,
+    context: Context,
   ): VNode | null {
     if (isInvalid(children)) {
       return null;
     }
 
     if (match) {
-      location ??= context.router.route.location;
+      location ??= readContext(context, routerContext)!.route.location;
       return createComponentVNode(_child.flags, _child.type, {
         ..._child.props,
         ...{ location, computedMatch: match },

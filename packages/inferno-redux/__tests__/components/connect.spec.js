@@ -1,8 +1,16 @@
-import { Component, render as _render, rerender } from 'inferno';
-import { connect } from 'inferno-redux';
+import {
+  Component,
+  contextValue,
+  createContext,
+  readContext,
+  render as _render,
+  rerender,
+} from 'inferno';
+import { connect, Provider, reduxContext } from 'inferno-redux';
 import { findRenderedVNodeWithType, Wrapper } from 'inferno-test-utils';
 import { createStore } from 'redux';
 import { VNodeFlags } from 'inferno-vnode-flags';
+const StatefulValueContext = createContext(0);
 
 describe('Inferno', () => {
   // IE does not support function names so error messages are different
@@ -41,15 +49,7 @@ describe('Inferno', () => {
       }
     }
 
-    class ProviderMock extends Component {
-      getChildContext() {
-        return { store: this.props.store };
-      }
-
-      render() {
-        return this.props.children;
-      }
-    }
+    const ProviderMock = Provider;
 
     class ContextBoundStore {
       constructor(reducer) {
@@ -123,7 +123,7 @@ describe('Inferno', () => {
       );
 
       const container = findRenderedVNodeWithType(tree, Container).children;
-      expect(container.context.store).toBe(store);
+      expect(readContext(container.context, reduxContext).store).toBe(store);
     });
 
     it('should pass state and props to the given component', () => {
@@ -1055,16 +1055,6 @@ describe('Inferno', () => {
     });
 
     it('should not attempt to notify unmounted child of state change', () => {
-      class ProviderMockTest extends Component {
-        getChildContext() {
-          return { store: this.props.store };
-        }
-
-        render() {
-          return this.props.children;
-        }
-      }
-
       const store = createStore(stringBuilder);
 
       const App = connect((state) => ({ hide: state === 'AB' }))(
@@ -1099,9 +1089,9 @@ describe('Inferno', () => {
 
       const div = document.createElement('div');
       render(
-        <ProviderMockTest store={store}>
+        <Provider store={store}>
           <App />
-        </ProviderMockTest>,
+        </Provider>,
         div,
       );
 
@@ -1712,7 +1702,11 @@ describe('Inferno', () => {
 
       class ImpureComponent extends Component {
         render() {
-          return <Passthrough statefulValue={this.context.statefulValue} />;
+          return (
+            <Passthrough
+              statefulValue={readContext(this.context, StatefulValueContext)}
+            />
+          );
         }
       }
 
@@ -1726,9 +1720,7 @@ describe('Inferno', () => {
         }
 
         getChildContext() {
-          return {
-            statefulValue: this.state.value,
-          };
+          return contextValue(StatefulValueContext, this.state.value);
         }
 
         render() {

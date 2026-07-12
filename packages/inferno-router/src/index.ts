@@ -2,7 +2,7 @@ import { StaticRouter } from './StaticRouter';
 import { BrowserRouter } from './BrowserRouter';
 import { HashRouter } from './HashRouter';
 import { MemoryRouter } from './MemoryRouter';
-import { Router } from './Router';
+import { Router, routerContext } from './Router';
 import { Route } from './Route';
 import { Switch } from './Switch';
 import { Link } from './Link';
@@ -27,7 +27,6 @@ export type {
   TLoaderData,
   IRouterProps,
   TContextRouter,
-  RouterContext,
 } from './Router';
 export type { IStaticRouterProps } from './StaticRouter';
 export type { IWithRouterProps } from './withRouter';
@@ -42,6 +41,7 @@ export {
   Redirect,
   Route,
   Router,
+  routerContext,
   StaticRouter,
   Switch,
   matchPath,

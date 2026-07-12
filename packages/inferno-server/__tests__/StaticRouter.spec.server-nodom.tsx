@@ -1,11 +1,19 @@
 import { renderToStaticMarkup } from 'inferno-server';
-import { Prompt, Redirect, Route, StaticRouter } from 'inferno-router';
+import { readContext } from 'inferno';
+import {
+  Prompt,
+  Redirect,
+  Route,
+  routerContext,
+  StaticRouter,
+} from 'inferno-router';
 
 describe('A <StaticRouter>', () => {
   it('provides context.router.staticContext in props.staticContext', () => {
     const ContextChecker = (props, reactContext) => {
-      expect(typeof reactContext.router).toBe('object');
-      expect(reactContext.router.staticContext).toBe(props.staticContext);
+      const router = readContext(reactContext, routerContext)!;
+      expect(typeof router).toBe('object');
+      expect(router.staticContext).toBe(props.staticContext);
       return null;
     };
 
@@ -24,8 +32,9 @@ describe('A <StaticRouter>', () => {
 
   it('context.router.staticContext persists inside of a <Route>', () => {
     const ContextChecker = (_props, reactContext) => {
-      expect(typeof reactContext.router).toBe('object');
-      expect(reactContext.router.staticContext).toBe(context);
+      const router = readContext(reactContext, routerContext)!;
+      expect(typeof router).toBe('object');
+      expect(router.staticContext).toBe(context);
       return null;
     };
 
@@ -44,7 +53,9 @@ describe('A <StaticRouter>', () => {
 
   it('provides context.router.history', () => {
     const ContextChecker = (_props, reactContext) => {
-      expect(typeof reactContext.router.history).toBe('object');
+      expect(typeof readContext(reactContext, routerContext)!.history).toBe(
+        'object',
+      );
       return null;
     };
 

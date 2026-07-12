@@ -4,6 +4,12 @@ import { isFunction, isNull, warning } from 'inferno-shared';
 import { createDerivedState, EMPTY_OBJ, getComponentName } from './common';
 import { VNodeFlags } from 'inferno-vnode-flags';
 import { normalizeRoot } from '../../core/implementation';
+import {
+  applyContextOverrides,
+  getChildContext,
+  renderWithContext,
+  reuseContext,
+} from '../../core/context';
 
 function warnAboutOldLifecycles(component: any): void {
   const oldLifecycles: string[] = [];
@@ -41,13 +47,22 @@ function warnAboutOldLifecycles(component: any): void {
 }
 
 export function renderNewInput(instance, props, context): VNode {
+  const lastChildContext = instance.$CX;
   const nextInput = normalizeRoot(
-    instance.render(props, instance.state, context),
+    renderWithContext(context, instance, () =>
+      instance.render(props, instance.state, context),
+    ),
   );
 
-  let childContext = context;
+  let childContext = getChildContext(instance, context);
   if (isFunction(instance.getChildContext)) {
-    childContext = { ...context, ...instance.getChildContext() };
+    childContext = applyContextOverrides(
+      childContext,
+      instance.getChildContext(),
+    );
+  }
+  if (!isNull(lastChildContext)) {
+    childContext = reuseContext(lastChildContext, childContext);
   }
   instance.$CX = childContext;
 

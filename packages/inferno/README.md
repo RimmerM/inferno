@@ -885,6 +885,57 @@ const string = renderToString(<div />);
 
 Render a virtual node into an HTML string, given the supplied virtual DOM.
 
+## Context
+
+Context types are registered once, before rendering starts. A `Context` is an
+indexed, read-only array, so passing it through the tree and reading a value are
+both inexpensive.
+
+```tsx
+import {
+  Component,
+  contextValue,
+  createContext,
+  createContextValues,
+  provideContext,
+  readContext,
+  render,
+  useContext,
+} from 'inferno';
+
+const Locale = createContext('en');
+
+class LocaleProvider extends Component {
+  getChildContext() {
+    return contextValue(Locale, this.props.locale);
+  }
+
+  render() {
+    return this.props.children;
+  }
+}
+
+function Greeting(_props, context) {
+  // useContext(Locale) is also valid during class or function render calls.
+  return <p>{readContext(context, Locale)}</p>;
+}
+
+render(
+  <LocaleProvider locale="sv"><Greeting /></LocaleProvider>,
+  container,
+  null,
+  createContextValues(contextValue(Locale, 'fi')),
+);
+```
+
+Class instances retain their incoming `Context` as `this.context`. Use
+`readContext(this.context, Type)` to read it. A class `getChildContext()` returns
+one `contextValue(Type, value)` override, or an array of overrides. A functional
+component receives the same `Context` as its second argument. A functional
+component that needs to provide context can call `provideContext(Type, value)`
+during its render; this API is intentionally optimized for the uncommon
+provider case.
+
 ## Functional component lifecycle events
 
 | Name                       | Triggered when                                                 | Arguments to callback      |
@@ -913,7 +964,7 @@ All these Component lifecycle methods ( including `render` and `setState - callb
 | `componentWillUpdate`             | component is about to perform an update                                               | `nextProps, nextState, context`  |
 | `componentDidUpdate`              | component has performed an update                                                     | `lastProps, lastState, snapshot` |
 | `componentWillUnmount`            | component is about to be unmounted                                                    |                                  |
-| `getChildContext`                 | before render method, return value object is combined to sub tree context             |                                  |
+| `getChildContext`                 | after render, returns one typed context override or an array of overrides              |                                  |
 | `getSnapshotBeforeUpdate`         | before component updates, return value is sent to componentDidUpdate as 3rd parameter | `lastProps, lastState`           |
 | `static getDerivedStateFromProps` | before render method                                                                  | `nextProps, state`               |
 | `componentDidAppear`              | component has mounted and is ready for animations                                     | `domNode`                        |

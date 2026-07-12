@@ -1,10 +1,19 @@
 import {
   Component,
+  contextValue,
+  type Context,
+  createContext,
   createPortal,
   InfernoNode,
   render as _render,
+  readContext,
 } from 'inferno';
 import { VNodeFlags } from 'inferno-vnode-flags';
+
+const PortalContext = createContext<{
+  foo: string;
+  getFoo(): string;
+} | null>(null);
 
 describe('Portal spec', () => {
   let container;
@@ -694,15 +703,16 @@ describe('Portal spec', () => {
 
     class Comp extends Component {
       public render() {
-        return <div>{this.context.foo}</div>;
+        return <div>{readContext(this.context, PortalContext)!.foo}</div>;
       }
     }
 
     class Parent extends Component {
       public getChildContext() {
-        return {
+        return contextValue(PortalContext, {
           foo: 'bar',
-        };
+          getFoo: () => 'bar',
+        });
       }
 
       public render() {
@@ -720,7 +730,8 @@ describe('Portal spec', () => {
 
     class Comp extends Component {
       public render() {
-        return <div>{this.context.foo + '-' + this.context.getFoo()}</div>;
+        const value = readContext(this.context, PortalContext)!;
+        return <div>{value.foo + '-' + value.getFoo()}</div>;
       }
     }
 
@@ -730,10 +741,10 @@ describe('Portal spec', () => {
       };
 
       public getChildContext() {
-        return {
+        return contextValue(PortalContext, {
           foo: this.state.bar,
           getFoo: () => this.state.bar,
-        };
+        });
       }
 
       public render() {
@@ -760,7 +771,8 @@ describe('Portal spec', () => {
 
     class Comp extends Component {
       public render() {
-        return <div>{this.context.foo + '-' + this.context.getFoo()}</div>;
+        const value = readContext(this.context, PortalContext)!;
+        return <div>{value.foo + '-' + value.getFoo()}</div>;
       }
     }
 
@@ -770,10 +782,10 @@ describe('Portal spec', () => {
 
     class Parent extends Component<ParentProps> {
       public getChildContext() {
-        return {
+        return contextValue(PortalContext, {
           foo: this.props.bar,
           getFoo: () => this.props.bar,
-        };
+        });
       }
 
       public render() {
@@ -797,7 +809,8 @@ describe('Portal spec', () => {
   it('should update portal context if it changes due to re-render - functional comps', () => {
     const portalContainer = document.createElement('div');
 
-    function Comp(_, { foo, getFoo }) {
+    function Comp(_, context: Context) {
+      const { foo, getFoo } = readContext(context, PortalContext)!;
       return <div>{foo + '-' + getFoo()}</div>;
     }
 
@@ -807,10 +820,10 @@ describe('Portal spec', () => {
 
     class Parent extends Component<ParentProps> {
       public getChildContext() {
-        return {
+        return contextValue(PortalContext, {
           foo: this.props.bar,
           getFoo: () => this.props.bar,
-        };
+        });
       }
 
       public render() {

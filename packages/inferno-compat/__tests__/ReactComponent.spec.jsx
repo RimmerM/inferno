@@ -8,11 +8,17 @@
  */
 
 import React from 'inferno-compat';
-import { createComponentVNode } from 'inferno';
+import {
+  contextValue,
+  createComponentVNode,
+  createContext,
+  readContext,
+} from 'inferno';
 import { Wrapper } from 'inferno-test-utils';
 import { VNodeFlags } from 'inferno-vnode-flags';
 
 const ReactDOM = React;
+const FooContext = createContext('');
 let mocks;
 
 describe('ReactComponent', function () {
@@ -137,9 +143,7 @@ describe('ReactComponent', function () {
       };
 
       getChildContext() {
-        return {
-          foo: 'bar',
-        };
+        return contextValue(FooContext, 'bar');
       }
 
       render() {
@@ -153,7 +157,7 @@ describe('ReactComponent', function () {
       };
 
       render() {
-        return <div>{this.context.foo}</div>;
+        return <div>{readContext(this.context, FooContext)}</div>;
       }
     }
 

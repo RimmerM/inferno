@@ -1,6 +1,7 @@
 import {
   renderInternal,
   _CI,
+  _GDC,
   _HI,
   _M,
   _MCCC,
@@ -9,6 +10,7 @@ import {
   _MP,
   _MR,
   Component,
+  type Context,
   createComponentVNode,
   createFragment,
   createPortal,
@@ -30,6 +32,7 @@ import {
   type VNode,
   useAnimation,
   useCallback,
+  useContext,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
@@ -73,7 +76,7 @@ options.reactStyles = true;
 function unmountComponentAtNode(
   container: Element | SVGAElement | DocumentFragment,
 ): boolean {
-  renderInternal(null, container, null, {});
+  renderInternal(null, container, null, _GDC());
   return true;
 }
 
@@ -330,36 +333,13 @@ abstract class PureComponent<P, S> extends Component<P, S> {
   }
 }
 
-interface ContextProps {
-  children?: InfernoNode;
-  context: any;
-}
-
-class WrapperComponent<P, S> extends Component<P & ContextProps, S> {
-  public getChildContext(): (P & ContextProps)['context'] {
-    return this.props.context;
-  }
-
-  public render(props): InfernoNode {
-    return props.children;
-  }
-}
-
 function unstable_renderSubtreeIntoContainer(
   parentComponent,
   vNode,
   container,
   callback,
 ): Component {
-  const wrapperVNode: VNode = createComponentVNode(
-    VNodeFlags.ComponentClass,
-    WrapperComponent,
-    {
-      children: vNode,
-      context: parentComponent.context,
-    },
-  );
-  render(wrapperVNode, container, null);
+  render(vNode, container, null, parentComponent.context);
   const component = vNode.children;
 
   if (callback) {
@@ -377,9 +357,9 @@ function render(
   rootInput,
   container,
   cb = null,
-  context = EMPTY_OBJ,
+  context?: Context,
 ): Component | undefined {
-  renderInternal(rootInput, container, cb, context);
+  renderInternal(rootInput, container, cb, context || _GDC());
 
   const input = container.$V;
 
@@ -440,6 +420,7 @@ if (
     unstable_renderSubtreeIntoContainer,
     useAnimation,
     useCallback,
+    useContext,
     useEffect,
     useImperativeHandle,
     useLayoutEffect,
@@ -501,6 +482,7 @@ export {
   unstable_renderSubtreeIntoContainer,
   useAnimation,
   useCallback,
+  useContext,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
@@ -558,6 +540,7 @@ export default {
   unstable_renderSubtreeIntoContainer,
   useAnimation,
   useCallback,
+  useContext,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,

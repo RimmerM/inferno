@@ -20,10 +20,14 @@ import {
   AnimationQueues,
   callAll,
   callAllAnimationHooks,
-  EMPTY_OBJ,
   renderCheck,
 } from './utils/common';
 import { type DelegateEventTypes } from './events/delegation';
+import {
+  type Context,
+  getDefaultContext,
+  lockContext,
+} from '../core/context';
 
 const hasDocumentAvailable: boolean = typeof document !== 'undefined';
 
@@ -57,6 +61,8 @@ export function renderInternal(
   callback: (() => void) | null,
   context: ContextObject,
 ): void {
+  lockContext();
+
   // Development warning
   if (process.env.NODE_ENV !== 'production') {
     if (documentBody === parentDOM) {
@@ -128,9 +134,9 @@ export function render(
   input: VNode | InfernoNode,
   parentDOM: ParentDOM,
   callback: (() => void) | null = null,
-  context: ContextObject = EMPTY_OBJ,
+  context?: Context,
 ): void {
-  renderInternal(input, parentDOM, callback, context);
+  renderInternal(input, parentDOM, callback, context || getDefaultContext());
 }
 
 export function createRenderer(parentDOM?: ParentDOM) {

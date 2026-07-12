@@ -2,7 +2,8 @@
 
 Inferno Redux is a [redux](https://github.com/reactjs/redux) library for [Inferno](https://github.com/infernojs/inferno).
 
-Inferno Redux passes `context.store` value to each component.
+Inferno Redux passes the store through Inferno's indexed context internally.
+Application components normally access it through `connect`.
 
 ## Install
 
@@ -21,9 +22,9 @@ Usage of `inferno-redux` is similar to that of [react-redux](https://github.com/
 Inspiration was taken from `react-redux` to provide Inferno with a similar API.
 
 ```js
-import { render } from 'inferno';
+import { Component, render } from 'inferno';
 import { Router, Route, browserHistory } from 'inferno-router';
-import { Provider } from 'inferno-redux';
+import { connect, Provider } from 'inferno-redux';
 import { createStore } from 'redux';
 
 const store = createStore(function (state, action) {
@@ -45,14 +46,11 @@ class App extends Component {
   }
 }
 
-class BasicComponent1 extends Component {
+class BasicComponent1View extends Component {
   render() {
-    const store = this.context.store;
-    const state = store.getState();
-
     const onClick = (e) => {
       e.preventDefault();
-      store.dispatch({
+      this.props.dispatch({
         type: 'CHANGE_NAME',
         name: 'Jerry',
       });
@@ -61,25 +59,30 @@ class BasicComponent1 extends Component {
     return (
       <div className="basic">
         <a id="dispatch" onClick={onClick}>
-          <span>Hello {state.name || 'Tom'}</span>
+          <span>Hello {this.props.name || 'Tom'}</span>
         </a>
       </div>
     );
   }
 }
 
-class BasicComponent2 extends Component {
-  render() {
-    const store = this.context.store;
-    const state = store.getState();
+const BasicComponent1 = connect((state) => ({ name: state.name }))(
+  BasicComponent1View,
+);
 
+class BasicComponent2View extends Component {
+  render() {
     return (
       <div className="basic2">
-        {state.name === 'Jerry' ? "You're a mouse!" : "You're a cat!"}
+        {this.props.name === 'Jerry' ? "You're a mouse!" : "You're a cat!"}
       </div>
     );
   }
 }
+
+const BasicComponent2 = connect((state) => ({ name: state.name }))(
+  BasicComponent2View,
+);
 
 render(
   <Provider store={store}>

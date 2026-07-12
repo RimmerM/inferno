@@ -1,5 +1,10 @@
-import { render, Component } from 'inferno';
-import { inject, observer, Provider } from 'inferno-mobx';
+import { Component, readContext, render } from 'inferno';
+import {
+  inject,
+  mobxStoresContext,
+  observer,
+  Provider,
+} from 'inferno-mobx';
 import { observable } from 'mobx';
 
 describe('inject based context', () => {
@@ -248,7 +253,7 @@ describe('inject based context', () => {
 
   it('custom storesToProps', (done) => {
     const C = inject((stores, props, context) => {
-      expect(context).toEqual({ mobxStores: { foo: 'bar' } });
+      expect(readContext(context, mobxStoresContext)).toEqual({ foo: 'bar' });
       expect(stores).toEqual({ foo: 'bar' });
       expect(props).toEqual({ baz: 42 });
 

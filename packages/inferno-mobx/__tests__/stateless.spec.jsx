@@ -1,8 +1,15 @@
-import { Component, render } from 'inferno';
+import {
+  Component,
+  contextValue,
+  createContext,
+  readContext,
+  render,
+} from 'inferno';
 import { observer } from 'inferno-mobx';
 import { createElement } from 'inferno-create-element';
 
 const stateLessComp = ({ testProp }) => <div>result: {testProp}</div>;
+const TestContext = createContext('');
 
 stateLessComp.defaultProps = {
   testProp: 'default value for prop testProp',
@@ -37,12 +44,16 @@ describe('Stateless components MOBX', () => {
 
   it('stateless component with context support', (done) => {
     const StateLessCompWithContext = (props, context) =>
-      createElement('div', {}, 'context: ' + context.testContext);
+      createElement(
+        'div',
+        {},
+        'context: ' + readContext(context, TestContext),
+      );
     const StateLessCompWithContextObserver = observer(StateLessCompWithContext);
 
     class ContextProvider extends Component {
       getChildContext() {
-        return { testContext: 'hello world' };
+        return contextValue(TestContext, 'hello world');
       }
 
       render() {

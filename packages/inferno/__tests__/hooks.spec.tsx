@@ -1,11 +1,15 @@
 import {
   Component,
+  contextValue,
+  createContext,
   createRef,
   memo,
   type RefObject,
+  readContext,
   render,
   rerender,
   useCallback,
+  useContext,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
@@ -17,6 +21,9 @@ import {
   useSyncExternalStoreWithSelector,
 } from 'inferno';
 import Spy = jasmine.Spy;
+
+const ThemeContext = createContext('');
+const FoobarContext = createContext<string | null>(null);
 
 describe('Component lifecycle (JSX)', () => {
   let container;
@@ -474,9 +481,15 @@ describe('Component lifecycle (JSX)', () => {
 
       render(<ConditionalHook enabled={false} />, _container);
 
-      expect(() =>
-        render(<ConditionalHook enabled={true} />, _container),
-      ).toThrow('hooks must be called in the same order');
+      let error: Error | null = null;
+      try {
+        render(<ConditionalHook enabled={true} />, _container);
+      } catch (caughtError) {
+        error = caughtError as Error;
+      }
+      expect(error!.message).toContain(
+        'hooks must be called in the same order',
+      );
     });
 
     it('flushes class and function updates in the same scheduled batch', async () => {
@@ -944,24 +957,19 @@ describe('Component lifecycle (JSX)', () => {
     it('should update memoized components when context changes', () => {
       let childRenders = 0;
 
-      const Child = memo(function Child(
-        props: { label: string },
-        context: { theme: string },
-      ) {
+      const Child = memo(function Child(props: { label: string }) {
         childRenders++;
 
         return (
           <span>
-            {props.label}:{context.theme}
+            {props.label}:{useContext(ThemeContext)}
           </span>
         );
       });
 
       class Provider extends Component<{ theme: string }, unknown> {
         public getChildContext() {
-          return {
-            theme: this.props.theme,
-          };
+          return contextValue(ThemeContext, this.props.theme);
         }
 
         public render() {
@@ -1036,6 +1044,29 @@ describe('Component lifecycle (JSX)', () => {
           done();
         }, 0);
       }, 0);
+    });
+
+    it('should preserve passive effect callbacks across synchronous renders', async () => {
+      const calls: string[] = [];
+
+      function EffectComponent(props: { value: number }) {
+        useEffect(() => {
+          calls.push(`effect:${props.value}`);
+
+          return () => {
+            calls.push(`cleanup:${props.value}`);
+          };
+        }, [props.value]);
+
+        return <div>{props.value}</div>;
+      }
+
+      render(<EffectComponent value={1} />, _container);
+      render(<EffectComponent value={2} />, _container);
+
+      await Promise.resolve();
+
+      expect(calls).toEqual(['effect:1', 'cleanup:1', 'effect:2']);
     });
 
     it('should expose imperative handles', () => {
@@ -1897,9 +1928,7 @@ describe('Component lifecycle (JSX)', () => {
         }
 
         public getChildContext() {
-          return {
-            foobar: this.state.foobar,
-          };
+          return contextValue(FoobarContext, this.state.foobar);
         }
 
         public componentWillMount() {
@@ -1923,7 +1952,7 @@ describe('Component lifecycle (JSX)', () => {
         }
 
         public render() {
-          return <span>{this.context.foobar}</span>;
+          return <span>{readContext(this.context, FoobarContext)}</span>;
         }
       }
 

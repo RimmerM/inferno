@@ -34,6 +34,7 @@ import {
   renderFunctionalComponentWithHooks,
   setFunctionalComponentState,
 } from '../core/hooks';
+import { getChildContext } from '../core/context';
 
 export function mount(
   vNode: VNode,
@@ -316,7 +317,7 @@ export function mountClassComponent(
   mount(
     instance.$LI,
     parentDOM,
-    instance.$CX,
+    instance.$CX!,
     isSVG,
     nextNode,
     lifecycle,
@@ -365,7 +366,7 @@ export function mountFunctionalComponent(
   mount(
     input,
     parentDOM,
-    context,
+    getChildContext(vNode, context),
     isSVG,
     nextNode,
     lifecycle,

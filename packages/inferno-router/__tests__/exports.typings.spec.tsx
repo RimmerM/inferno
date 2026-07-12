@@ -15,10 +15,10 @@ import type {
   TLoaderData,
   IRouterProps,
   TContextRouter,
-  RouterContext,
   IStaticRouterProps,
   IWithRouterProps,
 } from 'inferno-router';
+import { routerContext } from 'inferno-router';
 
 describe('inferno-router root type exports', () => {
   it('type checks the public type surface from the package root', () => {
@@ -58,7 +58,6 @@ describe('inferno-router root type exports', () => {
         match,
       },
     };
-    const routerContext: RouterContext = { router: contextRouter };
     const staticRouterProps: IStaticRouterProps<any> = {
       children: null,
       context: {},

@@ -11,6 +11,7 @@ import { Provider } from './Provider';
 import { EventEmitter } from './utils/EventEmitter';
 import { observerPatch } from './observerPatch';
 import { observerWrap } from './observerWrap';
+import { mobxStoresContext } from './context';
 
 // THIS IS PORT OF AWESOME MOBX-REACT to INFERNO
 // LAST POINT OF PORT
@@ -23,6 +24,7 @@ function onError(fn: (data: unknown) => void): () => void {
 export {
   errorsReporter,
   inject,
+  mobxStoresContext,
   observer,
   onError,
   EventEmitter,

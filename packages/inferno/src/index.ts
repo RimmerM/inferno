@@ -49,6 +49,27 @@ import {
   renderFunctionalComponentWithHooks,
   setFunctionalComponentState,
 } from './core/hooks';
+import {
+  applyContextOverrides,
+  contextValue,
+  createContext,
+  createContextValues,
+  getChildContext,
+  getDefaultContext,
+  lockContext,
+  provideContext,
+  readContext,
+  renderWithContext,
+  setContext,
+  useContext,
+} from './core/context';
+export type {
+  Context,
+  ContextOverride,
+  ContextOverrides,
+  ContextType,
+  ContextValue,
+} from './core/context';
 export * from './core/types';
 
 if (process.env.NODE_ENV !== 'production') {
@@ -83,6 +104,9 @@ export {
   Fragment,
   EMPTY_OBJ,
   createComponentVNode,
+  contextValue,
+  createContext,
+  createContextValues,
   createFragment,
   createPortal,
   createRef,
@@ -98,8 +122,12 @@ export {
   options,
   render,
   rerender,
+  provideContext,
+  readContext,
+  setContext,
   useAnimation,
   useCallback,
+  useContext,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
@@ -122,6 +150,11 @@ export {
   renderInternal,
   renderFunctionalComponent as _RFC,
   createFunctionalComponentState as _CFS,
+  applyContextOverrides as _ACO,
   renderFunctionalComponentWithHooks as _RFCH,
   setFunctionalComponentState as _SFCS,
+  getChildContext as _GCC,
+  getDefaultContext as _GDC,
+  lockContext as _LC,
+  renderWithContext as _RWC,
 };
