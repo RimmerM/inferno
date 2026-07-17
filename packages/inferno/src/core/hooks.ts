@@ -18,7 +18,8 @@ type StoreSelectionComparator<T> = (lastSelection: T, nextSelection: T) => boole
 
 const resolvedPromise = Promise.resolve();
 
-const enum HookType {
+// Keep these values in sync with hookTypeGlobals in jest.config.js.
+declare const enum HookType {
   State,
   Reducer,
   Ref,

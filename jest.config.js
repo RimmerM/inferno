@@ -1,3 +1,17 @@
+// Keep these values in sync with HookType in inferno/src/core/hooks.ts.
+const hookTypeGlobals = {
+  "HookType.State": "0",
+  "HookType.Reducer": "1",
+  "HookType.Ref": "2",
+  "HookType.Effect": "3",
+  "HookType.LayoutEffect": "4",
+  "HookType.Memo": "5",
+  "HookType.ImperativeHandle": "6",
+  "HookType.Animation": "7",
+  "HookType.ExternalStore": "8",
+  "HookType.ExternalStoreWithSelector": "9",
+};
+
 export default {
   collectCoverageFrom: [
     "packages/*/src/**/*.ts",
@@ -40,7 +54,15 @@ export default {
           ],
         },
         "target": "es2022",
-        "loose": true
+        "loose": true,
+        "transform": {
+          "optimizer": {
+            "globals": {
+              // SWC does not inline ambient const enums on its own.
+              "vars": hookTypeGlobals,
+            },
+          },
+        },
       }
     }],
   },
