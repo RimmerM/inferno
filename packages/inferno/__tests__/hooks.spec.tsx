@@ -574,10 +574,7 @@ describe('Component lifecycle (JSX)', () => {
       function StoreReader() {
         renders++;
 
-        const value = useSyncExternalStore(
-          store.subscribe,
-          store.getSnapshot,
-        );
+        const value = useSyncExternalStore(store.subscribe, store.getSnapshot);
 
         return <div>{value}</div>;
       }
@@ -672,10 +669,7 @@ describe('Component lifecycle (JSX)', () => {
       const StoreReader = memo(function StoreReader(props: { label: string }) {
         renders++;
 
-        const value = useSyncExternalStore(
-          store.subscribe,
-          store.getSnapshot,
-        );
+        const value = useSyncExternalStore(store.subscribe, store.getSnapshot);
 
         return (
           <div>
@@ -1097,6 +1091,101 @@ describe('Component lifecycle (JSX)', () => {
 
       render(null, _container);
       expect(ref.current).toBe(null);
+    });
+
+    it('should report the error a component throws rather than a hook order violation', () => {
+      let renders = 0;
+
+      function ThrowingComponent() {
+        const [value] = useState(0);
+
+        if (renders++ > 0) {
+          throw new Error('component blew up');
+        }
+
+        const doubled = useMemo(() => value * 2, [value]);
+
+        return <div>{doubled}</div>;
+      }
+
+      render(<ThrowingComponent />, _container);
+
+      expect(() => {
+        render(<ThrowingComponent />, _container);
+      }).toThrow(new Error('component blew up'));
+    });
+
+    it('should still detect hook order violations on a healthy render', () => {
+      let renders = 0;
+
+      function ReorderingComponent() {
+        useState(0);
+
+        if (renders++ > 0) {
+          useState(1);
+        }
+
+        return <div>ok</div>;
+      }
+
+      render(<ReorderingComponent />, _container);
+
+      expect(() => {
+        render(<ReorderingComponent />, _container);
+      }).toThrow(
+        new Error(
+          'Inferno Error: hooks must be called in the same order on every render.',
+        ),
+      );
+    });
+
+    it('should apply a class update queued from a layout effect during a nested rerender', () => {
+      let counter;
+      let bump;
+
+      class Counter extends Component<unknown, { n: number }> {
+        public state = { n: 0 };
+
+        public render() {
+          counter = this;
+
+          return <b>{this.state.n}</b>;
+        }
+      }
+
+      function Nested() {
+        const [value, setValue] = useState(0);
+
+        bump = setValue;
+
+        useLayoutEffect(() => {
+          if (value === 1) {
+            // inferno-mobx flushes from inside a reaction just like this,
+            // which can land in the middle of an ongoing flush.
+            rerender();
+            counter.setState({ n: 1 });
+          }
+        }, [value]);
+
+        return <i>{value}</i>;
+      }
+
+      render(
+        <div>
+          <Counter />
+          <Nested />
+        </div>,
+        _container,
+      );
+
+      bump(1);
+      rerender();
+
+      expect(_container.innerHTML).toBe('<div><b>1</b><i>1</i></div>');
+
+      counter.setState({ n: 5 });
+
+      expect(_container.innerHTML).toBe('<div><b>5</b><i>1</i></div>');
     });
   });
 

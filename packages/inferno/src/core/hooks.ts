@@ -1,8 +1,11 @@
 import type { ContextObject, InfernoNode, RefObject, VNode } from './types';
 import { isFunction, isNullOrUndef, throwError } from 'inferno-shared';
 import {
+  NESTED_UPDATE_LIMIT,
   registerFunctionalUpdateQueue,
+  resolvedPromise,
   scheduleUpdate,
+  tooManyUpdates,
 } from './scheduler';
 import { renderWithContext } from './context';
 
@@ -14,27 +17,58 @@ type EffectCleanup = (() => void) | null;
 type StoreSubscribe = (onStoreChange: () => void) => () => void;
 type SnapshotGetter<T> = () => T;
 type StoreSelector<S, T> = (snapshot: S) => T;
-type StoreSelectionComparator<T> = (lastSelection: T, nextSelection: T) => boolean;
+type StoreSelectionComparator<T> = (
+  lastSelection: T,
+  nextSelection: T,
+) => boolean;
 
-const resolvedPromise = Promise.resolve();
+/*
+ * Hook kinds. Plain constants rather than a const enum, so every toolchain
+ * that compiles this file directly - tsc, swc - resolves them without extra
+ * configuration.
+ */
+type HookType = number;
 
-// Keep these values in sync with hookTypeGlobals in jest.config.js.
-declare const enum HookType {
-  State,
-  Reducer,
-  Ref,
-  Effect,
-  LayoutEffect,
-  Memo,
-  ImperativeHandle,
-  Animation,
-  ExternalStore,
-  ExternalStoreWithSelector,
-}
+const HookState: HookType = 0;
+const HookReducer: HookType = 1;
+const HookRef: HookType = 2;
+const HookEffect: HookType = 3;
+const HookLayoutEffect: HookType = 4;
+const HookMemo: HookType = 5;
+const HookImperativeHandle: HookType = 6;
+const HookAnimation: HookType = 7;
+const HookExternalStore: HookType = 8;
+const HookExternalStoreWithSelector: HookType = 9;
 
+// Only referenced from development branches, so it drops out of the bundle.
+const hookNames = [
+  'useState',
+  'useReducer',
+  'useRef',
+  'useEffect',
+  'useLayoutEffect',
+  'useMemo/useCallback',
+  'useImperativeHandle',
+  'useAnimation',
+  'useSyncExternalStore',
+  'useSyncExternalStoreWithSelector',
+];
+
+/*
+ * Marks a hook value that has never been assigned. `undefined` is a valid
+ * state, so it cannot double as the "not initialized yet" signal.
+ */
+const UNSET = {};
+
+/*
+ * Hooks are created through the three factories below rather than field by
+ * field, so that every hook of a given family shares one object shape. The
+ * sites that see hooks of mixed kinds - runEffect, cleanupHook,
+ * updateHookState - then only ever observe two shapes.
+ */
 interface Hook {
   cleanup?: EffectCleanup;
-  create?: EffectCallback;
+  create?: EffectCallback | null;
   deps?: readonly unknown[] | null;
   dispatch?: (value: unknown) => void;
   getSnapshot?: SnapshotGetter<unknown>;
@@ -44,10 +78,14 @@ interface Hook {
   selector?: StoreSelector<unknown, unknown>;
   snapshot?: unknown;
   subscribe?: StoreSubscribe;
-  type?: HookType;
+  type: HookType;
   value?: unknown;
 }
 
+/*
+ * A queued effect captures the callback of the render that queued it, so two
+ * renders in one tick run both callbacks rather than the newest one twice.
+ */
 interface EffectJob {
   component: FunctionalComponentState;
   create: EffectCallback;
@@ -62,12 +100,12 @@ export interface AnimationHookCallbacks {
 
 export interface FunctionalComponentState {
   animation: AnimationHookCallbacks | null;
+  cleanups: Hook[] | null;
   context: ContextObject;
   hookCount?: number;
   hooks: Hook[] | null;
   isServer: boolean;
   isSVG: boolean;
-  parentDOM: Element | null;
   pendingEffects: EffectJob[] | null;
   pendingLayoutEffects: EffectJob[] | null;
   queued: boolean;
@@ -81,7 +119,6 @@ let currentContext: ContextObject | null = null;
 let currentHookIndex = 0;
 let currentIsServer = false;
 let currentIsSVG = false;
-let currentParentDOM: Element | null = null;
 let currentVNode: VNode | null = null;
 let functionalComponentUpdate:
   | ((component: FunctionalComponentState) => void)
@@ -102,6 +139,9 @@ function getCurrentComponent(): FunctionalComponentState {
   }
 
   if (isNullOrUndef(currentComponent)) {
+    // `null` is set by renderFunctionalComponentWithHooks below when a render
+    // completed without touching a single hook, and is distinct from the
+    // `undefined` a freshly created vNode carries.
     const previouslyRenderedWithoutHooks = currentVNode.$H === null;
 
     currentComponent = setFunctionalComponentState(
@@ -110,7 +150,6 @@ function getCurrentComponent(): FunctionalComponentState {
         currentVNode,
         currentContext!,
         currentIsSVG,
-        currentParentDOM,
         currentIsServer,
       ),
     );
@@ -126,19 +165,78 @@ function getCurrentComponent(): FunctionalComponentState {
   return currentComponent;
 }
 
+function createValueHook(type: HookType): Hook {
+  return {
+    deps: null,
+    dispatch: undefined,
+    reducer: undefined,
+    type,
+    value: UNSET,
+  };
+}
+
+function createEffectHook(type: HookType): Hook {
+  return {
+    cleanup: null,
+    create: null,
+    deps: null,
+    ref: null,
+    type,
+  };
+}
+
+function createStoreHook(type: HookType): Hook {
+  return {
+    cleanup: null,
+    create: null,
+    deps: null,
+    dispatch: undefined,
+    getSnapshot: undefined,
+    isEqual: undefined,
+    ref: null,
+    selector: undefined,
+    snapshot: undefined,
+    subscribe: undefined,
+    type,
+    value: UNSET,
+  };
+}
+
+function trackCleanup(component: FunctionalComponentState, hook: Hook): Hook {
+  const cleanups = component.cleanups || (component.cleanups = []);
+
+  cleanups.push(hook);
+
+  return hook;
+}
+
+function createHook(component: FunctionalComponentState, type: HookType): Hook {
+  switch (type) {
+    case HookEffect:
+    case HookLayoutEffect:
+    case HookImperativeHandle:
+      return trackCleanup(component, createEffectHook(type));
+    case HookExternalStore:
+    case HookExternalStoreWithSelector:
+      return trackCleanup(component, createStoreHook(type));
+    default:
+      return createValueHook(type);
+  }
+}
+
 function getHook(component: FunctionalComponentState, type: HookType): Hook {
   const hooks = component.hooks || (component.hooks = []);
   const index = currentHookIndex++;
   let hook = hooks[index];
 
   if (isNullOrUndef(hook)) {
-    hook = hooks[index] = {};
-
-    if (process.env.NODE_ENV !== 'production') {
-      hook.type = type;
-    }
+    hook = hooks[index] = createHook(component, type);
   } else if (process.env.NODE_ENV !== 'production' && hook.type !== type) {
-    throwError('hooks must be called in the same order on every render.');
+    throwError(
+      `hooks must be called in the same order on every render. Expected ${
+        hookNames[hook.type]
+      } but got ${hookNames[type]}.`,
+    );
   }
 
   return hook;
@@ -168,7 +266,9 @@ function depsChanged(
 function queueFunctionalComponentUpdate(
   component: FunctionalComponentState,
 ): void {
-  if (component.unmounted) {
+  // Nothing re-renders on the server, so state updates are dropped instead of
+  // piling up in a queue that is never drained.
+  if (component.unmounted || component.isServer) {
     return;
   }
 
@@ -276,6 +376,12 @@ function schedulePassiveEffects(effects: EffectJob[]): void {
   }
 }
 
+function runLayoutEffects(effects: EffectJob[]): void {
+  for (let i = 0; i < effects.length; i++) {
+    runEffect(effects[i]);
+  }
+}
+
 function cleanupHook(hook: Hook): void {
   if (isFunction(hook.cleanup)) {
     hook.cleanup();
@@ -316,7 +422,7 @@ function queueEffect(
 
   effects.push({
     component,
-    create: hook.create!,
+    create: hook.create as EffectCallback,
     hook,
   });
 }
@@ -331,16 +437,15 @@ export function createFunctionalComponentState(
   vNode: VNode,
   context: ContextObject,
   isSVG: boolean,
-  parentDOM: Element | null = null,
   isServer = false,
 ): FunctionalComponentState {
   const component: FunctionalComponentState = {
     animation: null,
+    cleanups: null,
     context,
     hooks: null,
     isServer,
     isSVG,
-    parentDOM,
     pendingEffects: null,
     pendingLayoutEffects: null,
     queued: false,
@@ -360,16 +465,15 @@ export function setFunctionalComponentState(
   vNode: VNode,
   component: FunctionalComponentState,
 ): FunctionalComponentState;
-export function setFunctionalComponentState(vNode: VNode, component: null): null;
+export function setFunctionalComponentState(
+  vNode: VNode,
+  component: null,
+): null;
 export function setFunctionalComponentState(
   vNode: VNode,
   component: FunctionalComponentState | null,
 ): FunctionalComponentState | null {
-  Object.defineProperty(vNode, '$H', {
-    configurable: true,
-    value: component,
-    writable: true,
-  });
+  vNode.$H = component;
 
   return component;
 }
@@ -388,16 +492,20 @@ function prepareFunctionalComponentHooks(
 
 function finishFunctionalComponentHooks(
   component: FunctionalComponentState,
+  rendered: boolean,
 ): void {
-  if (
-    process.env.NODE_ENV !== 'production' &&
-    component.renderCount! > 0 &&
-    currentHookIndex !== component.hookCount
-  ) {
-    throwError('hooks must be called in the same order on every render.');
-  }
-
   if (process.env.NODE_ENV !== 'production') {
+    // A render that threw part way through has called fewer hooks than it
+    // will on a healthy render. Reporting that as a hook order violation
+    // would bury the error the component actually threw.
+    if (
+      rendered &&
+      component.renderCount! > 0 &&
+      currentHookIndex !== component.hookCount
+    ) {
+      throwError('hooks must be called in the same order on every render.');
+    }
+
     component.renderCount!++;
   }
 }
@@ -406,19 +514,19 @@ export function commitFunctionalComponentEffects(
   component: FunctionalComponentState,
   lifecycle: Array<() => void>,
 ): void {
-  if (!isNullOrUndef(component.pendingLayoutEffects)) {
-    const effects = component.pendingLayoutEffects;
+  const layoutEffects = component.pendingLayoutEffects;
+
+  if (!isNullOrUndef(layoutEffects)) {
     component.pendingLayoutEffects = null;
 
     lifecycle.push(() => {
-      for (let i = 0; i < effects.length; i++) {
-        runEffect(effects[i]);
-      }
+      runLayoutEffects(layoutEffects);
     });
   }
 
-  if (!isNullOrUndef(component.pendingEffects)) {
-    const effects = component.pendingEffects;
+  const effects = component.pendingEffects;
+
+  if (!isNullOrUndef(effects)) {
     component.pendingEffects = null;
 
     lifecycle.push(() => {
@@ -432,22 +540,34 @@ export function unmountFunctionalComponentHooks(
 ): void {
   component.unmounted = true;
 
-  const hooks = component.hooks;
+  const cleanups = component.cleanups;
 
-  if (isNullOrUndef(hooks)) {
+  if (isNullOrUndef(cleanups)) {
     return;
   }
 
-  for (let i = 0; i < hooks.length; i++) {
-    cleanupHook(hooks[i]);
+  for (let i = 0; i < cleanups.length; i++) {
+    cleanupHook(cleanups[i]);
   }
 }
 
 function rerenderFunctionalComponents(): void {
+  /*
+   * Components queued while this loop runs are picked up by it, which is what
+   * keeps a chain of updates in a single batch. The budget scales with the
+   * work actually queued, so it only trips on a component that re-queues
+   * itself without ever settling.
+   */
+  const limit = (functionalComponentQueue.length + 1) * NESTED_UPDATE_LIMIT;
   let index = 0;
 
   try {
     while (index < functionalComponentQueue.length) {
+      if (index > limit) {
+        clearFunctionalComponentQueue();
+        tooManyUpdates();
+      }
+
       const component = functionalComponentQueue[index++];
 
       component.queued = false;
@@ -465,7 +585,16 @@ function rerenderFunctionalComponents(): void {
   }
 }
 
+function clearFunctionalComponentQueue(): void {
+  for (let i = 0; i < functionalComponentQueue.length; i++) {
+    functionalComponentQueue[i].queued = false;
+  }
+
+  functionalComponentQueue.length = 0;
+}
+
 registerFunctionalUpdateQueue({
+  clear: clearFunctionalComponentQueue,
   flush: rerenderFunctionalComponents,
   hasPending: () => functionalComponentQueue.length > 0,
 });
@@ -474,9 +603,9 @@ export function useState<S>(
   initialState: S | (() => S),
 ): [S, (value: HookAction<S>) => void] {
   const component = getCurrentComponent();
-  const hook = getHook(component, HookType.State);
+  const hook = getHook(component, HookState);
 
-  if (!('value' in hook)) {
+  if (hook.value === UNSET) {
     hook.value = isFunction(initialState)
       ? (initialState as () => S)()
       : initialState;
@@ -498,9 +627,9 @@ export function useReducer<S, A, I = S>(
   init?: ReducerInitializer<I, S>,
 ): [S, (action: A) => void] {
   const component = getCurrentComponent();
-  const hook = getHook(component, HookType.Reducer);
+  const hook = getHook(component, HookReducer);
 
-  if (!('value' in hook)) {
+  if (hook.value === UNSET) {
     hook.value = isFunction(init) ? init(initialArg) : (initialArg as unknown);
     hook.dispatch = (action) => {
       const nextState = (hook.reducer as Reducer<S, A>)(
@@ -520,10 +649,9 @@ export function useReducer<S, A, I = S>(
 export function useRef<T = undefined>(): { current: T | undefined };
 export function useRef<T>(initialValue: T): { current: T };
 export function useRef<T>(initialValue?: T): { current: T | undefined } {
-  const component = getCurrentComponent();
-  const hook = getHook(component, HookType.Ref);
+  const hook = getHook(getCurrentComponent(), HookRef);
 
-  if (!('value' in hook)) {
+  if (hook.value === UNSET) {
     hook.value = {
       current: initialValue,
     };
@@ -537,7 +665,7 @@ export function useEffect(
   deps?: readonly unknown[],
 ): void {
   const component = getCurrentComponent();
-  const hook = getHook(component, HookType.Effect);
+  const hook = getHook(component, HookEffect);
 
   if (depsChanged(hook.deps, deps)) {
     hook.create = create;
@@ -551,7 +679,7 @@ export function useLayoutEffect(
   deps?: readonly unknown[],
 ): void {
   const component = getCurrentComponent();
-  const hook = getHook(component, HookType.LayoutEffect);
+  const hook = getHook(component, HookLayoutEffect);
 
   if (depsChanged(hook.deps, deps)) {
     hook.create = create;
@@ -561,10 +689,11 @@ export function useLayoutEffect(
 }
 
 export function useMemo<T>(factory: () => T, deps?: readonly unknown[]): T {
-  const component = getCurrentComponent();
-  const hook = getHook(component, HookType.Memo);
+  const hook = getHook(getCurrentComponent(), HookMemo);
 
-  if (!('value' in hook) || depsChanged(hook.deps, deps)) {
+  // On the first render hook.deps is null, which depsChanged already reports
+  // as changed, so there is no separate "not initialized" check.
+  if (depsChanged(hook.deps, deps)) {
     hook.value = factory();
     hook.deps = isNullOrUndef(deps) ? null : deps;
   }
@@ -576,7 +705,14 @@ export function useCallback<T extends (...args: any[]) => any>(
   callback: T,
   deps?: readonly unknown[],
 ): T {
-  return useMemo(() => callback, deps);
+  const hook = getHook(getCurrentComponent(), HookMemo);
+
+  if (depsChanged(hook.deps, deps)) {
+    hook.value = callback;
+    hook.deps = isNullOrUndef(deps) ? null : deps;
+  }
+
+  return hook.value as T;
 }
 
 export function useSyncExternalStore<T>(
@@ -585,16 +721,13 @@ export function useSyncExternalStore<T>(
   getServerSnapshot?: SnapshotGetter<T>,
 ): T {
   const component = getCurrentComponent();
-  const hook = getHook(component, HookType.ExternalStore);
-  const snapshot =
+  const hook = getHook(component, HookExternalStore);
+  const lastSubscribe = hook.subscribe;
+
+  hook.value =
     component.isServer && isFunction(getServerSnapshot)
       ? getServerSnapshot()
       : getSnapshot();
-  const lastSubscribe = hook.subscribe;
-
-  if (!('value' in hook) || !Object.is(hook.value, snapshot)) {
-    hook.value = snapshot;
-  }
 
   if (isNullOrUndef(hook.dispatch)) {
     hook.dispatch = () => {
@@ -627,14 +760,14 @@ export function useSyncExternalStoreWithSelector<S, T>(
   isEqual?: StoreSelectionComparator<T>,
 ): T {
   const component = getCurrentComponent();
-  const hook = getHook(component, HookType.ExternalStoreWithSelector);
+  const hook = getHook(component, HookExternalStoreWithSelector);
   const snapshot =
     component.isServer && isFunction(getServerSnapshot)
       ? getServerSnapshot()
       : getSnapshot();
   const lastSubscribe = hook.subscribe;
   const lastSelector = hook.selector;
-  const hasValue = 'value' in hook;
+  const hasValue = hook.value !== UNSET;
 
   if (
     !hasValue ||
@@ -647,7 +780,11 @@ export function useSyncExternalStoreWithSelector<S, T>(
 
     if (
       !hasValue ||
-      !areSelectionsEqual(hook.value, nextSelection, isEqual as StoreSelectionComparator<unknown>)
+      !areSelectionsEqual(
+        hook.value,
+        nextSelection,
+        isEqual as StoreSelectionComparator<unknown>,
+      )
     ) {
       hook.value = nextSelection;
     }
@@ -684,7 +821,7 @@ export function useImperativeHandle<T>(
   deps?: readonly unknown[],
 ): void {
   const component = getCurrentComponent();
-  const hook = getHook(component, HookType.ImperativeHandle);
+  const hook = getHook(component, HookImperativeHandle);
   const lastRef = hook.ref;
 
   hook.ref = isNullOrUndef(ref)
@@ -713,7 +850,7 @@ export function useImperativeHandle<T>(
 export function useAnimation(callbacks: AnimationHookCallbacks): void {
   const component = getCurrentComponent();
 
-  getHook(component, HookType.Animation).value = callbacks;
+  getHook(component, HookAnimation).value = callbacks;
   component.animation = callbacks;
 }
 
@@ -721,7 +858,6 @@ export function renderFunctionalComponentWithHooks(
   vNode: VNode,
   context: ContextObject,
   isSVG: boolean,
-  parentDOM: Element | null,
   isServer: boolean,
   render: () => InfernoNode,
 ): InfernoNode {
@@ -730,34 +866,38 @@ export function renderFunctionalComponentWithHooks(
   const lastHookIndex = currentHookIndex;
   const lastIsServer = currentIsServer;
   const lastIsSVG = currentIsSVG;
-  const lastParentDOM = currentParentDOM;
   const lastVNode = currentVNode;
   const component = vNode.$H;
+  let rendered = false;
 
   currentComponent = component || null;
   currentContext = context;
   currentHookIndex = 0;
   currentIsServer = isServer;
   currentIsSVG = isSVG;
-  currentParentDOM = parentDOM;
   currentVNode = vNode;
 
   if (!isNullOrUndef(component)) {
     component.context = context;
     component.isServer = isServer;
     component.isSVG = isSVG;
-    component.parentDOM = parentDOM;
     component.vNode = vNode;
     prepareFunctionalComponentHooks(component);
   }
 
   try {
-    return renderWithContext(context, vNode, render);
+    const input = renderWithContext(context, vNode, render);
+
+    rendered = true;
+
+    return input;
   } finally {
     try {
       if (!isNullOrUndef(currentComponent)) {
-        finishFunctionalComponentHooks(currentComponent);
+        finishFunctionalComponentHooks(currentComponent, rendered);
       } else if (process.env.NODE_ENV !== 'production') {
+        // Records that this render used no hooks at all, which is what lets a
+        // component that starts calling them later be detected.
         setFunctionalComponentState(vNode, null);
       }
     } finally {
@@ -766,7 +906,6 @@ export function renderFunctionalComponentWithHooks(
       currentHookIndex = lastHookIndex;
       currentIsServer = lastIsServer;
       currentIsSVG = lastIsSVG;
-      currentParentDOM = lastParentDOM;
       currentVNode = lastVNode;
     }
   }

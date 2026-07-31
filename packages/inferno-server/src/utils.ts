@@ -126,7 +126,7 @@ export function renderFunctionalComponent(vNode: VNode, context): InfernoNode {
   const props = vNode.props || EMPTY_OBJ;
   const type = vNode.type;
 
-  return _RFCH(vNode, context, false, null, true, () =>
+  return _RFCH(vNode, context, false, true, () =>
     vNode.flags & VNodeFlags.Memo
       ? type.render(props, context)
       : type(props, context),

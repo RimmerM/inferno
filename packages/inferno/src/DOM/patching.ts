@@ -1,5 +1,11 @@
 import type { ContextObject, VNode } from '../core/types';
-import { isFunction, isInvalid, isNull, isNullOrUndef } from 'inferno-shared';
+import {
+  isFunction,
+  isInvalid,
+  isNull,
+  isNullOrUndef,
+  warning,
+} from 'inferno-shared';
 import { ChildFlags, VNodeFlags } from 'inferno-vnode-flags';
 import {
   createVoidVNode,
@@ -51,10 +57,7 @@ import {
   setFunctionalComponentState,
 } from '../core/hooks';
 import { shallowEqualProps } from '../core/memo';
-import {
-  getChildContext,
-  transferChildContext,
-} from '../core/context';
+import { getChildContext, transferChildContext } from '../core/context';
 
 setFunctionalComponentUpdate(updateFunctionalComponent);
 
@@ -278,7 +281,9 @@ function patchPortal(
   nextVNode.dom = lastVNode.dom;
 
   if (lastContainer !== nextContainer && !isInvalid(nextChildren)) {
-    const node = nextChildren.dom as Element;
+    // Component vNodes never carry a dom reference of their own, so the node
+    // to move has to be looked up through the tree.
+    const node = findDOMFromVNode(nextChildren, true) as Element;
 
     removeChild(lastContainer, node);
     appendChild(nextContainer, node);
@@ -812,7 +817,6 @@ function patchFunctionalComponent(
 
   if (
     nextVNode.flags & VNodeFlags.Memo &&
-    lastVNode.ref === nextVNode.ref &&
     !isNullOrUndef(component) &&
     component.context === context &&
     (nextVNode.type.compare || shallowEqualProps)(
@@ -820,7 +824,6 @@ function patchFunctionalComponent(
       nextVNode.props || EMPTY_OBJ,
     )
   ) {
-    component.parentDOM = parentDOM;
     component.isSVG = isSVG;
     component.unmounted = false;
     component.vNode = nextVNode;
@@ -833,18 +836,12 @@ function patchFunctionalComponent(
   }
 
   if (isNullOrUndef(component) && nextVNode.flags & VNodeFlags.Memo) {
-    component = createFunctionalComponentState(
-      nextVNode,
-      context,
-      isSVG,
-      parentDOM,
-    );
+    component = createFunctionalComponentState(nextVNode, context, isSVG);
   }
 
   if (!isNullOrUndef(component)) {
     component.context = context;
     component.isSVG = isSVG;
-    component.parentDOM = parentDOM;
     component.unmounted = false;
     component.vNode = nextVNode;
     setFunctionalComponentState(nextVNode, component);
@@ -853,13 +850,8 @@ function patchFunctionalComponent(
   transferChildContext(lastVNode, nextVNode);
 
   const nextInput = normalizeRoot(
-    renderFunctionalComponentWithHooks(
-      nextVNode,
-      context,
-      isSVG,
-      parentDOM,
-      false,
-      () => renderFunctionalComponent(nextVNode, context),
+    renderFunctionalComponentWithHooks(nextVNode, context, isSVG, false, () =>
+      renderFunctionalComponent(nextVNode, context),
     ),
   );
 
@@ -882,13 +874,23 @@ function patchFunctionalComponent(
   }
 }
 
-function updateFunctionalComponent(
-  component: FunctionalComponentState,
-): void {
+function updateFunctionalComponent(component: FunctionalComponentState): void {
   const lastInput = component.vNode.children as VNode;
-  const parentDOM = component.parentDOM;
+  // Resolved per update rather than cached on the component, the same way
+  // class components do it, because the tree above can move the rendered DOM
+  // into a different parent - a portal changing container, for one.
+  const parentDOM = findDOMFromVNode(lastInput, true)?.parentNode as
+    | Element
+    | null
+    | undefined;
 
   if (isNullOrUndef(parentDOM)) {
+    if (process.env.NODE_ENV !== 'production') {
+      warning(
+        'Inferno warning: a state update was ignored because the component is not mounted in the document.',
+      );
+    }
+
     return;
   }
   const lifecycle: Array<() => void> = [];
@@ -902,7 +904,6 @@ function updateFunctionalComponent(
         component.vNode,
         component.context,
         component.isSVG,
-        parentDOM,
         false,
         () => renderFunctionalComponent(component.vNode, component.context),
       ),

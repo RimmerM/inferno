@@ -7,6 +7,8 @@ import {
   InfernoNode,
   render as _render,
   readContext,
+  rerender,
+  useState,
 } from 'inferno';
 import { VNodeFlags } from 'inferno-vnode-flags';
 
@@ -866,6 +868,85 @@ describe('Portal spec', () => {
     render(null, container);
     expect(portalContainer.innerHTML).toBe('');
     expect(container.innerHTML).toBe('');
+  });
+
+  describe('Moving a portal to another container', () => {
+    it('should move a component child to the new container', () => {
+      const first = document.createElement('div');
+      const second = document.createElement('div');
+
+      document.body.appendChild(first);
+      document.body.appendChild(second);
+
+      class ClassChild extends Component {
+        public render() {
+          return <div>class</div>;
+        }
+      }
+
+      function FunctionChild() {
+        return <div>function</div>;
+      }
+
+      const App = ({ target }) => (
+        <div>
+          {createPortal(<ClassChild />, target)}
+          {createPortal(<FunctionChild />, target)}
+        </div>
+      );
+
+      render(<App target={first} />, container, null);
+      expect(first.innerHTML).toBe('<div>class</div><div>function</div>');
+      expect(second.innerHTML).toBe('');
+
+      render(<App target={second} />, container, null);
+      expect(first.innerHTML).toBe('');
+      expect(second.innerHTML).toBe('<div>class</div><div>function</div>');
+
+      render(null, container, null);
+      expect(second.innerHTML).toBe('');
+
+      first.remove();
+      second.remove();
+    });
+
+    it('should keep hook updates working after the container changed', () => {
+      const first = document.createElement('div');
+      const second = document.createElement('div');
+
+      document.body.appendChild(first);
+      document.body.appendChild(second);
+
+      let setTag;
+
+      function Child() {
+        const [tag, set] = useState('div');
+
+        setTag = set;
+
+        return tag === 'div' ? <div>A</div> : <span>B</span>;
+      }
+
+      const App = ({ target }) => <div>{createPortal(<Child />, target)}</div>;
+
+      render(<App target={first} />, container, null);
+      render(<App target={second} />, container, null);
+
+      expect(second.innerHTML).toBe('<div>A</div>');
+
+      // Replacing the root element needs the container the portal moved to,
+      // not the one the component was originally mounted into.
+      setTag('span');
+      rerender();
+
+      expect(first.innerHTML).toBe('');
+      expect(second.innerHTML).toBe('<span>B</span>');
+
+      render(null, container, null);
+
+      first.remove();
+      second.remove();
+    });
   });
 
   describe('Changing portal to other type of vNode', () => {

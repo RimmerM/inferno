@@ -1,9 +1,19 @@
+import { throwError } from 'inferno-shared';
+
 interface UpdateQueue {
+  clear(): void;
   flush(): void;
   hasPending(): boolean;
 }
 
-const resolvedPromise = Promise.resolve();
+/*
+ * Guards against a component that updates state unconditionally while
+ * rendering, which would otherwise keep this loop going forever.
+ */
+export const NESTED_UPDATE_LIMIT = 50;
+
+export const resolvedPromise = Promise.resolve();
+
 let classQueue: UpdateQueue | null = null;
 let functionalQueue: UpdateQueue | null = null;
 let flushing = false;
@@ -16,6 +26,13 @@ export function registerClassUpdateQueue(queue: UpdateQueue): void {
 
 export function registerFunctionalUpdateQueue(queue: UpdateQueue): void {
   functionalQueue = queue;
+}
+
+export function tooManyUpdates(): never {
+  throwError(
+    'too many re-renders. A component is updating state while rendering, which leaves the update loop unable to settle.',
+  );
+  throw new Error();
 }
 
 export function scheduleUpdate(): void {
@@ -38,19 +55,40 @@ export function hasScheduledUpdates(): boolean {
 }
 
 export function flushUpdates(): void {
+  // rerender() is public API and can be called from within a flush, so the
+  // flag has to be restored rather than cleared for the outer flush.
+  const lastFlushing = flushing;
+  let passes = 0;
+  let overflowed = false;
+
   pending = false;
   version++;
   flushing = true;
 
   try {
     do {
+      if (++passes > NESTED_UPDATE_LIMIT) {
+        // The queued work is what keeps re-triggering itself. Dropping it
+        // leaves the offending component broken but the scheduler usable.
+        overflowed = true;
+        classQueue?.clear();
+        functionalQueue?.clear();
+        tooManyUpdates();
+      }
+
       classQueue?.flush();
       functionalQueue?.flush();
     } while (classQueue?.hasPending() || functionalQueue?.hasPending());
   } finally {
-    flushing = false;
+    flushing = lastFlushing;
 
-    if (classQueue?.hasPending() || functionalQueue?.hasPending()) {
+    // Work queued by a component that crashed is still worth flushing, but
+    // re-scheduling a loop that just overflowed would only repeat the throw.
+    if (
+      !overflowed &&
+      !flushing &&
+      (classQueue?.hasPending() || functionalQueue?.hasPending())
+    ) {
       scheduleUpdate();
     }
   }

@@ -12,8 +12,10 @@ import {
 import {
   flushUpdates,
   hasScheduledUpdates,
+  NESTED_UPDATE_LIMIT,
   registerClassUpdateQueue,
   scheduleUpdate,
+  tooManyUpdates,
 } from './scheduler';
 import {
   type Context,
@@ -88,9 +90,18 @@ function callSetStateCallbacks(component): void {
 }
 
 function rerenderClassComponents(): void {
+  // Budget scales with the work actually queued, so it only trips on a
+  // component that keeps re-queueing itself without ever settling.
+  const limit = (COMPONENTS_QUEUE.length + 1) * NESTED_UPDATE_LIMIT;
   let component: Component<any, any> | undefined;
+  let processed = 0;
 
   while ((component = COMPONENTS_QUEUE.shift())) {
+    if (processed++ > limit) {
+      COMPONENTS_QUEUE.length = 0;
+      tooManyUpdates();
+    }
+
     if (!component.$UN) {
       const force = component.$F;
       component.$F = false;
@@ -104,6 +115,9 @@ function rerenderClassComponents(): void {
 }
 
 registerClassUpdateQueue({
+  clear: () => {
+    COMPONENTS_QUEUE.length = 0;
+  },
   flush: rerenderClassComponents,
   hasPending: () => COMPONENTS_QUEUE.length > 0,
 });
@@ -168,7 +182,7 @@ export abstract class Component<
   public $CX: Context | null = null; // CHILDCONTEXT
   public $QU: Array<() => void> | null = null; // QUEUE
   public $N: boolean = false; // Uses new lifecycle API Flag
-  public $SSR?: boolean; // Server side rendering flag, true when rendering on server, non existent on client
+  public $SSR: boolean = false; // Server side rendering flag, true when rendering on server
   public $L: Array<() => void> | null = null; // Current lifecycle of this component
   public $SVG: boolean = false; // Flag to keep track if component is inside SVG tree
   public $F: boolean = false; // Force update flag

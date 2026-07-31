@@ -338,18 +338,13 @@ export function mountFunctionalComponent(
   if (vNode.flags & VNodeFlags.Memo) {
     setFunctionalComponentState(
       vNode,
-      createFunctionalComponentState(vNode, context, isSVG, parentDOM),
+      createFunctionalComponentState(vNode, context, isSVG),
     );
   }
 
   const input = normalizeRoot(
-    renderFunctionalComponentWithHooks(
-      vNode,
-      context,
-      isSVG,
-      parentDOM,
-      false,
-      () => renderFunctionalComponent(vNode, context),
+    renderFunctionalComponentWithHooks(vNode, context, isSVG, false, () =>
+      renderFunctionalComponent(vNode, context),
     ),
   );
 

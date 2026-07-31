@@ -28,6 +28,8 @@ import {
 } from 'inferno-test-utils';
 
 const VNodeKeys = [
+  '$CX',
+  '$H',
   'children',
   'childFlags',
   'className',

@@ -49,6 +49,14 @@ function V(
   this.props = props === void 0 ? null : props;
   this.ref = ref === void 0 ? null : ref;
   this.type = type;
+  /*
+   * Declared up front so every vNode shares one shape and these can be written
+   * with a plain store. They must start as undefined: hooks.ts uses a null $H
+   * to mark "this vNode rendered without calling any hook", which is a
+   * different state from "never rendered".
+   */
+  this.$H = undefined;
+  this.$CX = undefined;
 }
 
 export function createVNode<P>(
@@ -260,10 +268,7 @@ export function normalizeProps(vNode: VNode): VNode {
       vNode.key = props.key;
       props.key = undefined;
     }
-    if (
-      props.ref !== void 0 &&
-      !(flags & VNodeFlags.ComponentFunction)
-    ) {
+    if (props.ref !== void 0 && !(flags & VNodeFlags.ComponentFunction)) {
       vNode.ref = props.ref;
       props.ref = undefined;
     }

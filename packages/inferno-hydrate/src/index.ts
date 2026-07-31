@@ -104,11 +104,11 @@ function hydrateComponent(
     _MCCC(ref, instance, lifecycle, animations);
   } else {
     if (vNode.flags & VNodeFlags.Memo) {
-      _SFCS(vNode, _CFS(vNode, context, isSVG, parentDOM));
+      _SFCS(vNode, _CFS(vNode, context, isSVG));
     }
 
     const input = _HI(
-      _RFCH(vNode, context, isSVG, parentDOM, false, () =>
+      _RFCH(vNode, context, isSVG, false, () =>
         renderFunctionalComponent(vNode, context),
       ),
     );

@@ -119,6 +119,14 @@ export function useContext<T extends ContextValue>(type: ContextType<T>): T {
   return readContext(currentContext!, type);
 }
 
+/**
+ * Provides a context value to everything rendered below the current component.
+ *
+ * The value is written to the component's child context, so the component
+ * doing the providing keeps reading whatever its own parent provided for the
+ * rest of this render - the same way a provider element does not see its own
+ * value.
+ */
 export function provideContext<T extends ContextValue>(
   type: ContextType<T>,
   value: NoInfer<T>,
@@ -235,13 +243,5 @@ export function lockContext(): void {
 }
 
 function setChildContext(target: ContextTarget, context: Context): void {
-  if ('$CX' in target) {
-    target.$CX = context;
-  } else {
-    Object.defineProperty(target, '$CX', {
-      configurable: true,
-      value: context,
-      writable: true,
-    });
-  }
+  target.$CX = context;
 }
