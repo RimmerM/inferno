@@ -1,4 +1,4 @@
-import { throwError } from 'inferno-shared';
+import { isNull, throwError } from 'inferno-shared';
 
 interface UpdateQueue {
   clear(): void;
@@ -16,6 +16,7 @@ export const resolvedPromise = Promise.resolve();
 
 let classQueue: UpdateQueue | null = null;
 let functionalQueue: UpdateQueue | null = null;
+let passiveEffectFlush: (() => void) | null = null;
 let flushing = false;
 let pending = false;
 let version = 0;
@@ -26,6 +27,23 @@ export function registerClassUpdateQueue(queue: UpdateQueue): void {
 
 export function registerFunctionalUpdateQueue(queue: UpdateQueue): void {
   functionalQueue = queue;
+}
+
+export function registerPassiveEffectFlush(flush: () => void): void {
+  passiveEffectFlush = flush;
+}
+
+/**
+ * Runs any passive effect left over from an earlier commit.
+ *
+ * Call this before starting a render pass. Passive effects observe the DOM,
+ * so one that is still waiting when the next commit lands would run against a
+ * tree that has already moved past the render it belongs to.
+ */
+export function flushPendingEffects(): void {
+  if (!isNull(passiveEffectFlush)) {
+    passiveEffectFlush();
+  }
 }
 
 export function tooManyUpdates(): never {
@@ -64,6 +82,10 @@ export function flushUpdates(): void {
   pending = false;
   version++;
   flushing = true;
+
+  // Inside the flush, so an update queued by one of these effects joins this
+  // pass instead of scheduling another one.
+  flushPendingEffects();
 
   try {
     do {

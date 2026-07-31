@@ -3,6 +3,7 @@ import { isFunction, isNullOrUndef, throwError } from 'inferno-shared';
 import {
   NESTED_UPDATE_LIMIT,
   registerFunctionalUpdateQueue,
+  registerPassiveEffectFlush,
   resolvedPromise,
   scheduleUpdate,
   tooManyUpdates,
@@ -83,8 +84,11 @@ interface Hook {
 }
 
 /*
- * A queued effect captures the callback of the render that queued it, so two
- * renders in one tick run both callbacks rather than the newest one twice.
+ * A queued effect captures the callback of the render that queued it, rather
+ * than reading the newest one when it runs. Starting a render pass settles
+ * outstanding effects first, so this only comes up when a component commits
+ * more than once inside a single pass - and then each commit still gets its
+ * own callback instead of the last one running twice.
  */
 interface EffectJob {
   component: FunctionalComponentState;
@@ -127,6 +131,7 @@ let functionalComponentUpdate:
 const functionalComponentQueue: FunctionalComponentState[] = [];
 const pendingPassiveEffects: EffectJob[] = [];
 let passiveEffectsPending = false;
+let flushingPassiveEffects = false;
 
 function invalidHookCall(): never {
   throwError('hooks can only be called inside functional components.');
@@ -343,6 +348,18 @@ function runEffect(job: EffectJob): void {
 }
 
 function flushPassiveEffects(): void {
+  /*
+   * An effect is free to render, and rendering flushes pending effects, so
+   * this can be re-entered. The jobs already run are not spliced off until
+   * the loop below finishes, so a nested drain would run them a second time.
+   * Returning is safe: the loop re-reads the queue length on every turn and
+   * so picks up whatever the nested caller wanted flushed.
+   */
+  if (flushingPassiveEffects) {
+    return;
+  }
+
+  flushingPassiveEffects = true;
   passiveEffectsPending = false;
 
   let index = 0;
@@ -352,6 +369,8 @@ function flushPassiveEffects(): void {
       runEffect(pendingPassiveEffects[index++]);
     }
   } finally {
+    flushingPassiveEffects = false;
+
     if (index === pendingPassiveEffects.length) {
       pendingPassiveEffects.length = 0;
     } else if (index > 0) {
@@ -362,6 +381,12 @@ function flushPassiveEffects(): void {
       passiveEffectsPending = true;
       resolvedPromise.then(flushPassiveEffects);
     }
+  }
+}
+
+function flushPendingPassiveEffects(): void {
+  if (pendingPassiveEffects.length > 0) {
+    flushPassiveEffects();
   }
 }
 
@@ -593,6 +618,8 @@ function clearFunctionalComponentQueue(): void {
   functionalComponentQueue.length = 0;
 }
 
+registerPassiveEffectFlush(flushPendingPassiveEffects);
+
 registerFunctionalUpdateQueue({
   clear: clearFunctionalComponentQueue,
   flush: rerenderFunctionalComponents,
@@ -646,18 +673,21 @@ export function useReducer<S, A, I = S>(
   return [hook.value as S, hook.dispatch as (action: A) => void];
 }
 
-export function useRef<T = undefined>(): { current: T | undefined };
+export function useRef<T = undefined>(): { current: T | null };
 export function useRef<T>(initialValue: T): { current: T };
-export function useRef<T>(initialValue?: T): { current: T | undefined } {
+export function useRef<T>(initialValue?: T): { current: T | null } {
   const hook = getHook(getCurrentComponent(), HookRef);
 
   if (hook.value === UNSET) {
+    // An absent initial value becomes null rather than undefined, matching
+    // createRef(). A ref object holding undefined is not recognised as a ref
+    // when it is handed to an element, so it would silently never attach.
     hook.value = {
-      current: initialValue,
+      current: initialValue === void 0 ? null : initialValue,
     };
   }
 
-  return hook.value as { current: T | undefined };
+  return hook.value as { current: T | null };
 }
 
 export function useEffect(

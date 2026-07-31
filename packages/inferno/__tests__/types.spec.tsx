@@ -21,9 +21,15 @@ function hookTypes(): void {
   useMemo(() => 1, deps);
 
   const ref = useRef<number>();
-  const value: number | undefined = ref.current;
+  const value: number | null = ref.current;
 
-  expect(value).toBeUndefined();
+  expect(value).toBeNull();
+
+  // A ref created without an initial value has to be accepted by an element,
+  // which is what makes it usable for reading DOM nodes.
+  const elementRef = useRef<HTMLDivElement>();
+
+  render(<div ref={elementRef} />, document.createElement('div'));
 }
 
 void hookTypes;

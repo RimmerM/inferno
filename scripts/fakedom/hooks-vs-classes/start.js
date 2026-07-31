@@ -32,6 +32,8 @@ import {
  *   REPEATS=15         measured runs per implementation
  *   WARMUP=4           unmeasured runs per implementation first
  *   DENSE=1            every component owns state and an effect
+ *   SETTLE_EACH=1      give each update its own tick, instead of committing
+ *                      every update in one tick
  *   STABLE_DEPS=1      effect deps never change, so no effect re-runs
  *   JSON=1             also print a machine readable line
  *   MODE=memory        measure retained heap instead of time
@@ -51,6 +53,7 @@ const REPEATS = Number(process.env.REPEATS || 15);
 const WARMUP = Number(process.env.WARMUP || 4);
 const TREES = Number(process.env.TREES || 6);
 const DENSE = process.env.DENSE === '1';
+const SETTLE_EACH = process.env.SETTLE_EACH === '1';
 const STABLE_DEPS = process.env.STABLE_DEPS === '1';
 
 const implementations = DENSE ? denseImplementations : defaultImplementations;
@@ -94,6 +97,17 @@ async function runOnce(impl) {
   t = performance.now();
   for (let g = 1; g <= UPDATES; g++) {
     renderTree(container, generations[g], g);
+
+    /*
+     * Whether the updates share a tick decides whether passive effects pile
+     * up behind each other or flush between commits, which is a meaningfully
+     * different workload for hooks. A microtask boundary is enough to get
+     * that property, and unlike a timer it does not add milliseconds of
+     * harness overhead to every update.
+     */
+    if (SETTLE_EACH) {
+      await Promise.resolve();
+    }
   }
   await settle();
   const propUpdate = performance.now() - t;
@@ -252,13 +266,14 @@ if (process.env.MODE === 'memory') {
   );
 
   console.log(
-    'rows=%d  updates=%d  state passes=%d  repeats=%d  dense=%s  stableDeps=%s',
+    'rows=%d  updates=%d  state passes=%d  repeats=%d  dense=%s  stableDeps=%s  settleEach=%s',
     ROWS,
     UPDATES,
     STATE_PASSES,
     REPEATS,
     DENSE,
     STABLE_DEPS,
+    SETTLE_EACH,
   );
   console.log(
     'identical DOM: %s (%d chars)   identical effects: %s (%d subscribes)\n',

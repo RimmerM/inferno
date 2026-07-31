@@ -1189,6 +1189,229 @@ describe('Component lifecycle (JSX)', () => {
     });
   });
 
+  describe('passive effect flushing', () => {
+    let _container;
+
+    beforeEach(function () {
+      _container = document.createElement('div');
+      document.body.appendChild(_container);
+    });
+
+    afterEach(function () {
+      render(null, _container);
+      document.body.removeChild(_container);
+    });
+
+    it('should run each effect against the DOM of the render that queued it', async () => {
+      const calls: string[] = [];
+
+      function EffectComponent(props: { value: number }) {
+        useEffect(() => {
+          calls.push(`effect:${props.value} sees ${_container.textContent}`);
+
+          return () => {
+            calls.push(`cleanup:${props.value} sees ${_container.textContent}`);
+          };
+        }, [props.value]);
+
+        return <div>{props.value}</div>;
+      }
+
+      render(<EffectComponent value={1} />, _container);
+      render(<EffectComponent value={2} />, _container);
+      render(<EffectComponent value={3} />, _container);
+
+      await Promise.resolve();
+
+      expect(calls).toEqual([
+        'effect:1 sees 1',
+        'cleanup:1 sees 2',
+        'effect:2 sees 2',
+        'cleanup:2 sees 3',
+        'effect:3 sees 3',
+      ]);
+    });
+
+    it('should settle pending effects before a class component commits', () => {
+      const calls: string[] = [];
+      let instance;
+
+      class Counter extends Component<unknown, { n: number }> {
+        public state = { n: 0 };
+
+        public render() {
+          instance = this;
+
+          return <b>{this.state.n}</b>;
+        }
+      }
+
+      function EffectComponent(props: { value: number }) {
+        useEffect(() => {
+          calls.push(`effect:${props.value} sees ${_container.textContent}`);
+        }, [props.value]);
+
+        return <i>{props.value}</i>;
+      }
+
+      render(
+        <div>
+          <Counter />
+          <EffectComponent value={1} />
+        </div>,
+        _container,
+      );
+
+      // Synchronous setState commits without going through the scheduler, so
+      // the pending effect has to run before the DOM changes underneath it.
+      instance.setState({ n: 9 });
+
+      expect(calls).toEqual(['effect:1 sees 01']);
+    });
+
+    it('should not run an effect twice when an effect renders', async () => {
+      const calls: string[] = [];
+      const other = document.createElement('div');
+
+      document.body.appendChild(other);
+
+      function Inner() {
+        useEffect(() => {
+          calls.push('inner');
+        }, []);
+
+        return <span>inner</span>;
+      }
+
+      function Outer() {
+        useEffect(() => {
+          calls.push('outer');
+          // Rendering from inside an effect re-enters the flush.
+          render(<Inner />, other);
+        }, []);
+
+        return <span>outer</span>;
+      }
+
+      render(<Outer />, _container);
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(calls).toEqual(['outer', 'inner']);
+
+      render(null, other);
+      other.remove();
+    });
+
+    it('should still run every queued callback across synchronous renders', async () => {
+      const calls: string[] = [];
+
+      function EffectComponent(props: { value: number }) {
+        useEffect(() => {
+          calls.push(`effect:${props.value}`);
+
+          return () => {
+            calls.push(`cleanup:${props.value}`);
+          };
+        }, [props.value]);
+
+        return <div>{props.value}</div>;
+      }
+
+      render(<EffectComponent value={1} />, _container);
+      render(<EffectComponent value={2} />, _container);
+
+      await Promise.resolve();
+
+      expect(calls).toEqual(['effect:1', 'cleanup:1', 'effect:2']);
+    });
+  });
+
+  describe('useRef', () => {
+    let _container;
+
+    beforeEach(function () {
+      _container = document.createElement('div');
+      document.body.appendChild(_container);
+    });
+
+    afterEach(function () {
+      render(null, _container);
+      document.body.removeChild(_container);
+    });
+
+    it('should attach to an element when created without an initial value', () => {
+      let seen;
+
+      function Comp() {
+        const ref = useRef<HTMLDivElement>();
+
+        useLayoutEffect(() => {
+          seen = ref.current;
+        }, []);
+
+        return <div ref={ref}>x</div>;
+      }
+
+      render(<Comp />, _container);
+
+      expect(seen).toBe(_container.firstChild);
+    });
+
+    it('should start out null when created without an initial value', () => {
+      let initial;
+
+      function Comp() {
+        const ref = useRef<HTMLDivElement>();
+
+        if (initial === undefined) {
+          initial = ref.current;
+        }
+
+        return <div ref={ref}>x</div>;
+      }
+
+      render(<Comp />, _container);
+
+      expect(initial).toBe(null);
+    });
+
+    it('should keep an explicit initial value', () => {
+      let seen;
+
+      function Comp() {
+        const ref = useRef(7);
+
+        seen = ref.current;
+
+        return <div>x</div>;
+      }
+
+      render(<Comp />, _container);
+
+      expect(seen).toBe(7);
+    });
+
+    it('should detach on unmount', () => {
+      const outer: Array<{ current: HTMLDivElement | null }> = [];
+
+      function Comp() {
+        const ref = useRef<HTMLDivElement>();
+
+        outer[0] = ref;
+
+        return <div ref={ref}>x</div>;
+      }
+
+      render(<Comp />, _container);
+      expect(outer[0].current).not.toBe(null);
+
+      render(null, _container);
+      expect(outer[0].current).toBe(null);
+    });
+  });
+
   describe('ref hook', () => {
     const fakeObj = {
       previousSiblingCallback() {},

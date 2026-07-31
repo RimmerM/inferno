@@ -28,6 +28,7 @@ import {
   getDefaultContext,
   lockContext,
 } from '../core/context';
+import { flushPendingEffects } from '../core/scheduler';
 
 const hasDocumentAvailable: boolean = typeof document !== 'undefined';
 
@@ -61,6 +62,9 @@ export function renderInternal(
   callback: (() => void) | null,
   context: ContextObject,
 ): void {
+  // Effects left over from an earlier commit belong to the tree as it stands
+  // now, not to the one this render is about to produce.
+  flushPendingEffects();
   lockContext();
 
   // Development warning

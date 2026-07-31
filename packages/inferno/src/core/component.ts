@@ -10,6 +10,7 @@ import {
   renderCheck,
 } from '../DOM/utils/common';
 import {
+  flushPendingEffects,
   flushUpdates,
   hasScheduledUpdates,
   NESTED_UPDATE_LIMIT,
@@ -52,6 +53,9 @@ function queueStateChanges<P, S>(
   if (!component.$BR) {
     if (!renderCheck.v) {
       if (COMPONENTS_QUEUE.length === 0 && !hasScheduledUpdates()) {
+        // This commits synchronously without going through flushUpdates, so
+        // it has to settle outstanding effects itself.
+        flushPendingEffects();
         applyState(component, force);
         if (isFunction(callback)) {
           callback.call(component);
