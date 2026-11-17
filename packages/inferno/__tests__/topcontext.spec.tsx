@@ -11,6 +11,7 @@ import {
   readContext,
   render,
   useContext,
+  useRenderContext,
 } from 'inferno';
 import { ChildFlags } from 'inferno-vnode-flags';
 
@@ -116,6 +117,38 @@ describe('top level context', () => {
 
     expect(container.textContent).toBe('retained');
     expect(readRetainedContext()).toBe('retained');
+  });
+
+  it('returns the whole render context from useRenderContext', () => {
+    let rendered: Context | null = null;
+    let received: Context | null = null;
+
+    const Reader = (_props, context: Context) => {
+      rendered = useRenderContext();
+      received = context;
+      return <span>{readContext(rendered, FooContext)}</span>;
+    };
+
+    const Provider = ({ children }) => {
+      provideContext(FooContext, 'provided');
+      return children;
+    };
+
+    render(
+      <Provider>
+        <Reader />
+      </Provider>,
+      container,
+      null,
+      createContextValues(contextValue(FooContext, 'parent')),
+    );
+
+    expect(container.innerHTML).toBe('<span>provided</span>');
+    expect(rendered).toBe(received);
+  });
+
+  it('throws when useRenderContext is called outside rendering', () => {
+    expect(() => useRenderContext()).toThrow();
   });
 
   it('provides context efficiently from a function component', () => {

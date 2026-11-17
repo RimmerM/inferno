@@ -120,6 +120,23 @@ export function useContext<T extends ContextValue>(type: ContextType<T>): T {
 }
 
 /**
+ * Returns the whole context the current component renders with: the same
+ * value a function component receives as its second argument.
+ *
+ * Useful for hooks that hand the context on, such as one that renders content
+ * elsewhere with the caller's context.
+ */
+export function useRenderContext(): Context {
+  if (isNullOrUndef(currentContext)) {
+    throwError(
+      'useRenderContext() can only be called while a component is rendering.',
+    );
+  }
+
+  return currentContext!;
+}
+
+/**
  * Provides a context value to everything rendered below the current component.
  *
  * The value is written to the component's child context, so the component

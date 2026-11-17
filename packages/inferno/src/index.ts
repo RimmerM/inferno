@@ -62,6 +62,7 @@ import {
   renderWithContext,
   setContext,
   useContext,
+  useRenderContext,
 } from './core/context';
 export type {
   Context,
@@ -134,6 +135,7 @@ export {
   useMemo,
   useReducer,
   useRef,
+  useRenderContext,
   useState,
   useSyncExternalStore,
   useSyncExternalStoreWithSelector,
