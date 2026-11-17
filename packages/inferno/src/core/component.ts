@@ -93,15 +93,23 @@ function callSetStateCallbacks(component): void {
   component.$QU = null;
 }
 
+// Counts the update loops of rerenderClassComponents(), for each component's updates in the current one.
+let rerenderLoop = 0;
+
 function rerenderClassComponents(): void {
-  // Budget scales with the work actually queued, so it only trips on a
-  // component that keeps re-queueing itself without ever settling.
-  const limit = (COMPONENTS_QUEUE.length + 1) * NESTED_UPDATE_LIMIT;
+  // The limit is per component, as for functional components: a loop may
+  // reach any number of components, but one that keeps re-queueing itself
+  // without ever settling trips it.
+  const loop = ++rerenderLoop;
   let component: Component<any, any> | undefined;
-  let processed = 0;
 
   while ((component = COMPONENTS_QUEUE.shift())) {
-    if (processed++ > limit) {
+    if (component.$RL !== loop) {
+      component.$RL = loop;
+      component.$RC = 0;
+    }
+
+    if (++component.$RC > NESTED_UPDATE_LIMIT) {
       COMPONENTS_QUEUE.length = 0;
       tooManyUpdates();
     }
@@ -190,6 +198,8 @@ export abstract class Component<
   public $L: Array<() => void> | null = null; // Current lifecycle of this component
   public $SVG: boolean = false; // Flag to keep track if component is inside SVG tree
   public $F: boolean = false; // Force update flag
+  public $RL: number = 0; // The update loop that last updated the component (rerenderClassComponents)
+  public $RC: number = 0; // The updates in that loop
 
   constructor(props?: P, context?: Context) {
     this.props = (props || EMPTY_OBJ) as Readonly<{ children?: InfernoNode }> &

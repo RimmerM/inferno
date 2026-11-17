@@ -114,6 +114,9 @@ export interface FunctionalComponentState {
   pendingLayoutEffects: EffectJob[] | null;
   queued: boolean;
   renderCount?: number;
+  // The update loop that last rendered the component (rerenderFunctionalComponents()), and how many times it did.
+  rerenderLoop: number;
+  rerenders: number;
   unmounted: boolean;
   vNode: VNode;
 }
@@ -124,6 +127,8 @@ let currentHookIndex = 0;
 let currentIsServer = false;
 let currentIsSVG = false;
 let currentVNode: VNode | null = null;
+// Counts the update loops of rerenderFunctionalComponents(), for each component's rerenders in the current one.
+let rerenderLoop = 0;
 let functionalComponentUpdate:
   | ((component: FunctionalComponentState) => void)
   | null = null;
@@ -474,6 +479,8 @@ export function createFunctionalComponentState(
     pendingEffects: null,
     pendingLayoutEffects: null,
     queued: false,
+    rerenderLoop: 0,
+    rerenders: 0,
     unmounted: false,
     vNode,
   };
@@ -579,23 +586,30 @@ export function unmountFunctionalComponentHooks(
 function rerenderFunctionalComponents(): void {
   /*
    * Components queued while this loop runs are picked up by it, which is what
-   * keeps a chain of updates in a single batch. The budget scales with the
-   * work actually queued, so it only trips on a component that re-queues
-   * itself without ever settling.
+   * keeps a chain of updates in a single batch, however many components it
+   * reaches (such as a panel that mounts many children which measure
+   * themselves in a layout effect). The limit is per component, so it only
+   * trips on a component that is queued again and again in the same loop
+   * without ever settling.
    */
-  const limit = (functionalComponentQueue.length + 1) * NESTED_UPDATE_LIMIT;
+  const loop = ++rerenderLoop;
   let index = 0;
 
   try {
     while (index < functionalComponentQueue.length) {
-      if (index > limit) {
-        clearFunctionalComponentQueue();
-        tooManyUpdates();
-      }
-
       const component = functionalComponentQueue[index++];
 
       component.queued = false;
+
+      if (component.rerenderLoop !== loop) {
+        component.rerenderLoop = loop;
+        component.rerenders = 0;
+      }
+
+      if (++component.rerenders > NESTED_UPDATE_LIMIT) {
+        clearFunctionalComponentQueue();
+        tooManyUpdates();
+      }
 
       if (!component.unmounted && !isNullOrUndef(functionalComponentUpdate)) {
         functionalComponentUpdate(component);

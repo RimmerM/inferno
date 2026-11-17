@@ -1,4 +1,4 @@
-import { Component, render, rerender, useState } from 'inferno';
+import { Component, render, rerender, useState, useLayoutEffect } from 'inferno';
 
 /*
  * These live in their own file because hitting the update limit deliberately
@@ -121,5 +121,56 @@ describe('Update limit', () => {
         'Inferno Error: too many re-renders. A component is updating state while rendering, which leaves the update loop unable to settle.',
       ),
     );
+  });
+
+  it('mounting many children that set state in a layout effect is not a loop', () => {
+    function Measured() {
+      const [width, setWidth] = useState(0);
+      useLayoutEffect(() => {
+        setWidth(100);
+      }, []);
+      return <span>{width}</span>;
+    }
+
+    let show;
+    function Panel() {
+      const [shown, setShown] = useState(false);
+      show = () => setShown(true);
+      return <div>{shown ? Array.from({ length: 150 }, (_, i) => <Measured key={i} />) : null}</div>;
+    }
+
+    render(<Panel />, container);
+    show();
+    expect(() => rerender()).not.toThrow();
+    expect(container.textContent).toBe('100'.repeat(150));
+  });
+
+  it('mounting many class children that set state when mounted is not a loop', () => {
+    class Measured extends Component<unknown, { width: number }> {
+      state = { width: 0 };
+      componentDidMount() {
+        this.setState({ width: 100 });
+      }
+      render() {
+        return <span>{this.state!.width}</span>;
+      }
+    }
+
+    let show;
+    class Panel extends Component<unknown, { shown: boolean }> {
+      state = { shown: false };
+      constructor(props) {
+        super(props);
+        show = () => this.setState({ shown: true });
+      }
+      render() {
+        return <div>{this.state!.shown ? Array.from({ length: 150 }, (_, i) => <Measured key={i} />) : null}</div>;
+      }
+    }
+
+    render(<Panel />, container);
+    show();
+    expect(() => rerender()).not.toThrow();
+    expect(container.textContent).toBe('100'.repeat(150));
   });
 });
